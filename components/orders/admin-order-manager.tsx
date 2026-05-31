@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  CountPill,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
 
 type OrderStatus =
@@ -177,26 +185,19 @@ export function AdminOrderManager() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="rounded-lg border border-[#ded8cc] bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5d50]">
-            Admin
-          </p>
-          <h1 className="mt-3 text-2xl font-bold text-[#1f2933] sm:text-3xl">
-            Quản lý đơn hàng
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-[#625b50]">
-            Xem toàn bộ đơn hàng, lọc theo trạng thái hoặc ngày tạo, và kiểm tra chi tiết từng đơn.
-          </p>
-        </div>
+    <PageShell>
+      <PageHero
+        eyebrow="Admin"
+        title="Quản lý đơn hàng"
+        description="Xem toàn bộ đơn hàng, lọc theo trạng thái hoặc ngày tạo, và kiểm tra chi tiết từng đơn."
+      />
 
-        <section className="rounded-lg border border-[#ded8cc] bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_120px]">
+      <Panel className="p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_220px_120px]">
             <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Trạng thái
               <select
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setStatusFilter(event.target.value as "ALL" | OrderStatus)
                 }
@@ -213,7 +214,7 @@ export function AdminOrderManager() {
             <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Ngày tạo
               <input
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) => setDateFilter(event.target.value)}
                 type="date"
                 value={dateFilter}
@@ -221,36 +222,28 @@ export function AdminOrderManager() {
             </label>
 
             <button
-              className="mt-auto rounded-md bg-[#2f5d50] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#24483e] disabled:cursor-not-allowed disabled:opacity-60"
+              className="pos-button-primary mt-auto disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isLoading}
               onClick={() => loadOrders()}
               type="button"
             >
               Lọc
             </button>
-          </div>
-        </section>
+        </div>
+      </Panel>
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0 rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#eee7dd] p-4">
-              <h2 className="text-lg font-bold text-[#1f2933]">
-                Danh sách đơn
-              </h2>
-              <span className="rounded-full bg-[#f7f7f2] px-3 py-1 text-sm font-semibold text-[#625b50]">
-                {orders.length} đơn
-              </span>
-            </div>
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Panel className="min-w-0 overflow-hidden">
+          <PanelHeader
+            title="Danh sách đơn"
+            aside={<CountPill>{orders.length} đơn</CountPill>}
+          />
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] border-collapse text-sm">
-                <thead className="bg-[#f7f7f2] text-left text-xs uppercase tracking-wide text-[#6b6254]">
+              <table className="pos-table min-w-[820px]">
+                <thead>
                   <tr>
                     <th className="px-4 py-3">Mã đơn</th>
                     <th className="px-4 py-3">Bàn</th>
@@ -280,8 +273,8 @@ export function AdminOrderManager() {
                     <tr
                       className={
                         selectedOrderId === order.id
-                          ? "cursor-pointer border-t border-[#eee7dd] bg-[#eff7f2]"
-                          : "cursor-pointer border-t border-[#eee7dd] hover:bg-[#f7f7f2]"
+                          ? "cursor-pointer border-t border-[#eadfce] bg-[#eff7f2]"
+                          : "cursor-pointer border-t border-[#eadfce] hover:bg-[#fff7ea]"
                       }
                       key={order.id}
                       onClick={() => setSelectedOrderId(order.id)}
@@ -310,77 +303,74 @@ export function AdminOrderManager() {
                 </tbody>
               </table>
             </div>
-          </div>
+        </Panel>
 
-          <aside className="h-fit rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
-            {!selectedOrder ? (
-              <div className="rounded-lg border border-dashed border-[#d6d1c7] p-6 text-center text-sm text-[#625b50]">
-                Chọn một đơn hàng để xem chi tiết.
+        <Panel className="h-fit p-5">
+          {!selectedOrder ? (
+            <div className="pos-empty">Chọn một đơn hàng để xem chi tiết.</div>
+          ) : (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-[#6d645a]">
+                    Đơn #{selectedOrder.id}
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-[#172027]">
+                    {selectedOrder.table.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-[#6d645a]">
+                    {formatDateTime(selectedOrder.createdAt)}
+                  </p>
+                </div>
+                <span
+                  className={`pos-badge ${statusClassName[selectedOrder.status]}`}
+                >
+                  {statusLabel[selectedOrder.status]}
+                </span>
               </div>
-            ) : (
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#625b50]">
-                      Đơn #{selectedOrder.id}
-                    </p>
-                    <h2 className="mt-1 text-xl font-bold text-[#1f2933]">
-                      {selectedOrder.table.name}
-                    </h2>
-                    <p className="mt-1 text-sm text-[#625b50]">
-                      {formatDateTime(selectedOrder.createdAt)}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${statusClassName[selectedOrder.status]}`}
+
+              <div className="mt-5 overflow-hidden rounded-2xl border border-[#eadfce]">
+                {selectedOrder.items.map((item) => (
+                  <div
+                    className="flex justify-between gap-3 border-b border-[#eadfce] px-3 py-3 last:border-b-0"
+                    key={item.id}
                   >
-                    {statusLabel[selectedOrder.status]}
-                  </span>
-                </div>
-
-                <div className="mt-5 rounded-md border border-[#eee7dd]">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      className="flex justify-between gap-3 border-b border-[#eee7dd] px-3 py-3 last:border-b-0"
-                      key={item.id}
-                    >
-                      <div>
-                        <p className="font-semibold text-[#1f2933]">
-                          {item.productName}
-                        </p>
-                        <p className="mt-1 text-xs text-[#625b50]">
-                          {formatMoney(item.price)} x {item.quantity}
-                        </p>
-                      </div>
-                      <span className="font-bold text-[#2f5d50]">
-                        {formatMoney(item.price * item.quantity)}
-                      </span>
+                    <div>
+                      <p className="font-bold text-[#172027]">
+                        {item.productName}
+                      </p>
+                      <p className="mt-1 text-xs text-[#6d645a]">
+                        {formatMoney(item.price)} x {item.quantity}
+                      </p>
                     </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-md bg-[#f7f7f2] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#625b50]">
-                    Ghi chú
-                  </p>
-                  <p className="mt-1 text-sm text-[#3b352d]">
-                    {selectedOrder.note || "Không có ghi chú."}
-                  </p>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-[#eee7dd] pt-4">
-                  <span className="text-sm font-medium text-[#625b50]">
-                    Tổng tiền
-                  </span>
-                  <span className="text-xl font-bold text-[#2f5d50]">
-                    {formatMoney(selectedOrder.totalAmount)}
-                  </span>
-                </div>
+                    <span className="font-black text-[#2f5d50]">
+                      {formatMoney(item.price * item.quantity)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
-          </aside>
-        </section>
+
+              <div className="mt-4 rounded-2xl bg-[#f8f3ea] p-3">
+                <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#6d645a]">
+                  Ghi chú
+                </p>
+                <p className="mt-1 text-sm text-[#3b352d]">
+                  {selectedOrder.note || "Không có ghi chú."}
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-[#eadfce] pt-4">
+                <span className="text-sm font-medium text-[#6d645a]">
+                  Tổng tiền
+                </span>
+                <span className="text-xl font-black text-[#2f5d50]">
+                  {formatMoney(selectedOrder.totalAmount)}
+                </span>
+              </div>
+            </div>
+          )}
+        </Panel>
       </section>
-    </main>
+    </PageShell>
   );
 }

@@ -1,6 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  CountPill,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
 
 type ProductStatus = "AVAILABLE" | "UNAVAILABLE";
@@ -341,35 +349,20 @@ export function ProductManager() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="rounded-lg border border-[#ded8cc] bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5d50]">
-            Admin
-          </p>
-          <h1 className="mt-3 text-2xl font-bold text-[#1f2933] sm:text-3xl">
-            Quản lý sản phẩm
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-[#625b50]">
-            Thêm, sửa, xóa món trong menu và quản lý trạng thái đang bán.
-          </p>
-        </div>
+    <PageShell>
+      <PageHero
+        eyebrow="Admin"
+        title="Quản lý sản phẩm"
+        description="Thêm, sửa, xóa món trong menu và quản lý trạng thái đang bán."
+      />
 
-        {message ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {message}
-          </div>
-        ) : null}
+      {message ? <Alert tone="success">{message}</Alert> : null}
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <form
-            className="h-fit rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm"
+            className="pos-panel h-fit p-5"
             onSubmit={handleSubmit}
           >
             <h2 className="text-lg font-bold text-[#1f2933]">
@@ -379,7 +372,7 @@ export function ProductManager() {
             <label className="mt-5 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Tên sản phẩm
               <input
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -396,7 +389,7 @@ export function ProductManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Danh mục
               <select
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -418,7 +411,7 @@ export function ProductManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Giá bán
               <input
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 min={0}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -437,7 +430,7 @@ export function ProductManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Trạng thái
               <select
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -454,7 +447,7 @@ export function ProductManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Ảnh sản phẩm
               <input
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -470,7 +463,7 @@ export function ProductManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Mô tả
               <textarea
-                className="min-h-24 rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input min-h-24"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -484,7 +477,7 @@ export function ProductManager() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <button
-                className="rounded-md bg-[#2f5d50] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24483e] disabled:cursor-not-allowed disabled:opacity-70"
+                className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSubmitting || categories.length === 0}
                 type="submit"
               >
@@ -497,7 +490,7 @@ export function ProductManager() {
 
               {editingProduct ? (
                 <button
-                  className="rounded-md border border-[#d6d1c7] px-4 py-2 text-sm font-semibold text-[#3b352d] transition hover:bg-[#f7f7f2]"
+                  className="pos-button-secondary"
                   onClick={resetForm}
                   type="button"
                 >
@@ -513,26 +506,23 @@ export function ProductManager() {
             ) : null}
           </form>
 
-          <div className="min-w-0 rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eee7dd] p-4">
-              <div>
-                <h2 className="text-lg font-bold text-[#1f2933]">
-                  Danh sách sản phẩm
-                </h2>
-                <p className="mt-1 text-sm text-[#625b50]">
-                  {filteredProducts.length} / {products.length} sản phẩm
-                </p>
-              </div>
+          <Panel className="min-w-0 overflow-hidden">
+            <PanelHeader
+              title="Danh sách sản phẩm"
+              description={`${filteredProducts.length} / ${products.length} sản phẩm`}
+              aside={<CountPill>{products.length} món</CountPill>}
+            />
+            <div className="flex flex-wrap items-center justify-end gap-3 border-b border-[#eadfce] p-4">
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <input
-                  className="w-full rounded-md border border-[#d6d1c7] px-3 py-2 text-sm outline-none focus:border-[#2f5d50] sm:w-56"
+                  className="pos-input w-full text-sm sm:w-56"
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Tìm theo tên sản phẩm"
                   type="search"
                   value={searchQuery}
                 />
                 <select
-                  className="rounded-md border border-[#d6d1c7] px-3 py-2 text-sm outline-none focus:border-[#2f5d50]"
+                  className="pos-input text-sm"
                   onChange={(event) => setCategoryFilter(event.target.value)}
                   value={categoryFilter}
                 >
@@ -548,20 +538,20 @@ export function ProductManager() {
 
             <div className="grid gap-4 p-4 2xl:grid-cols-2">
               {isLoading ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-6 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Đang tải sản phẩm...
                 </div>
               ) : null}
 
               {!isLoading && filteredProducts.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-6 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Không tìm thấy sản phẩm phù hợp.
                 </div>
               ) : null}
 
               {filteredProducts.map((product) => (
                 <article
-                  className="flex min-w-0 flex-col rounded-lg border border-[#eee7dd] bg-white p-4 shadow-sm"
+                  className="flex min-w-0 flex-col rounded-2xl border border-[#eadfce] bg-white p-4 shadow-sm"
                   key={product.id}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -654,9 +644,8 @@ export function ProductManager() {
                 </article>
               ))}
             </div>
-          </div>
-        </section>
+          </Panel>
       </section>
-    </main>
+    </PageShell>
   );
 }

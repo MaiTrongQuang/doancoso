@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getCategoryContextIds } from "./customer-order-navigation";
 import { formatMoney } from "@/lib/format-money";
 
 type CustomerProduct = {
@@ -66,6 +67,14 @@ const menuImages = {
     "https://lh3.googleusercontent.com/aida-public/AB6AXuBTuTeeW1VMiv_LjZVuzH6Tjp4Auv0YCuVwELZC3v-q_beDTQeGlVmtw1eg6umutoZlpCWu9Hz5TMG7BV8Da48U5XIQTfPZ2i9eQees1c8V18-BqLBfxN4EOG-KUBiezSqPXLSI2q8Z1kcB78ZQPyz-L4Fz42JIGsH8C3cBX85G85O-jr7jej30OaXt_kHxFWfWq-m7aIyxuFrJfOyXpqLi9_82QR4BFvioTv1kkWNkVJ25SBpFWLZpdjGTQ-zWkg4_36UA2NCmM8I",
   saltedCoffee:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuAM1fusOAMpASYibEfI2rGuPdxTiKBLBHkD_z-no8CBFVRfgNhnVBeG6R0TaaaN73ldGmMnLi7bxeB9LRv_fWeAGaCPG781KYVPzYXBaaVWIETbVxbpY95djK8a29DsHC7QUKDZNL7IGwH6xq_xPLmTES6KmxZOOnkxjewozgXy0KuEl2uQWx2M-tcJusYKaZbwr-uNNkKnHDkzB_YDs_4QCBVGQBPt3agvaXFUPjUy9LEk39WmypvXpfTNRVQKlaOjgOItpEDoVmU",
+  peachTea:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAD5EKpW5yzHbWxyw7iafcM3JB8iOJ6LCwBxMQTgFqXMsV01GY03qOyCXWZXTHtiHURXELZoWzEO7rVfs5CwsK4iBjTeZ4za3v5MA9tFh2uao0qwsIaBl9b78PYHDU94_MGaFtUOZR4oX-VnR8XXv2D7Z31bRq9RYgHK53fJftOWWFYwDmX2iBxWY_jjHuBPU6LUxpYHCgv5wyeOdzRxvoZyir2NXjGoisyQ_fNKOcxbcsjREn_MSNcUOTuxQuK7RGOz_8GTYJtyAM",
+  lycheeTea:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBAGCqTKbQTzyerzuVE8XisrybszGqSaP7Rno2ZGHnAiltJHviXU2KSdc-cJe2Ze3BTPekqwjIe2vDh5zb3zJ-IBQ6TIM5RQq9E8CgMlUhOiS6w1Cb_u7x8jIc7ewZCL3GQ_vmWnjgcNUJsusguQelpUhhF4wNemplOeKURWFZYe7h7wakALUFL1tRsr0iQpLplWCILszB8OO0EW1CdrhX6fqDpJuj2dWb28FXQCYOkp81nj7pFAMClae-ios2KnvWVBSUs3yS26e4",
+  lemonHoneyTea:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBD5I9YsjznsMANuDRW3paROk-DSomIuUONwD0zJ0iBuOY7QTSHYJr7ueSP-vSda5LEHN1WePLl1LHOnqi1_r5JgNpiyoDMBFCob0yg2uu2JAxxewaXiy-axTtYlfLauhKTD6VORgBEoYG08iTe_k5to9RFtejXzHP-0ii8TCzmJD-MooK9y3Mo57kHtoqZq8mGYYIRN1kQZ07vqvilU_0eTvlVYlI8OMasRrWwLBiXWmdqvNCSnwv5pejqp5nBsQmzap6G1Wc4ljU",
+  kumquatTea:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBbngkNLVva8USbZnJn5MroFpblgETgqzlk2vdM30-0tHUgimhPsYZDoqPYkSWNZJ-dIJ0M0ZxTj_mRenmh-J5WkrTYPs6jQOgcuztj4J7ONaEeRm4CcF_keWoPRAcMGQ8ne572J8pyAwyQ4VQuNb8YziBA8du0yUgMtzaAquvAgapp7uaFTlZEj-bdpoD-HtllV13Il7HFJ6hSzite8XoS8k8hQwE8rBOiaRTj1mGmTTG8c6fxhBJuxrDFDgcyFZ4qFe_XNcpwzDM",
   orangeJuice:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuCZwO64z7i7RqKguM20cS-L5y37aT0n7E9IbX67reazei8T3-Pz6MsA-WhVr69QccO_xrv5EPZfwORhjgIomsuWKpyjRxSOk0WDIV784Nzt9vVwwyESHjHfJUpkhhTklP5dX6MV1ILK7t7Y7Iojxw89uJrrrz75QRWgVjhChSzJw6uREORozbp-bk-nBn0qZIXSRQlpuYN6AZLxm4KSuho88bu91JIPlv0C3ZMnO8L9GBFBH4Z5NOG5WFxM1nb1ifjA__gkuzQL0Qg",
   passionJuice:
@@ -76,18 +85,32 @@ const menuImages = {
     "https://lh3.googleusercontent.com/aida-public/AB6AXuAUpXXvoub-X04ZWM3KlFzXkswMh7Pkya_0HAysPPgMqQpiW6_0NAx-F4cBPE0B9Vjhrc8mH5Qis6wBSUkh9nufzGaK4AhboE3GfnO455QwTgIhHWw68EIRw_QQ4VS5DV8kcxUfiTgqSFunXgsBJwLnF5sGX5LwXVk388pTlAk_GLUAnTqgRb2BIYNrzB6XN1D4x3PnCncCF2CwmzDbYxlbNhRDD40r-RqaZqBvSjJSlUqFilB5mSaY3NhSCurtylRTORrjnGW4iG8",
   matchaTea:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuC2I3vxN45CSQREroIUtcTk9fADkhQzA9-GHL747a0KnbkVYLBR0opioaPBzWuorP4hKB7EBdVUXE6SRLBpr5Fjb4p4LySn6Umt9i-tQX65H0i1SgZ2yfVN_k0Z-D-yHgC44wfdaQmxfohNDsPVWFgWWtPVRxMB7yuUM3xLUvNgpLC1C_tSke_voCBhCtAlaNym4V4YZGbqY7fcfw-QZX1U5_S2Fx55IBgza8ewaxRf7pSFnU5oLhToILLvzKV9yBIsGSVA3fN3ZUs",
+  taroMilkTea:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuC6MfsM4-yZj6BlhvDgxC3a-GSePGclO4M_jqtBpr445T0F8OIsiZPNgJkXFg7l1F_uyD_YFofNW6CZ-FVcg6A1CPsP7-cagFJuZ7L9fs0qcdTjDjWidr4ajLg0nZAHV9YcuxRkOasMCSOlbp90tZ0d8X_OPwQ-7bCev005Gq1MbE10wHSxtfg6tXJk9bwpg56d7HB-oJ7fY6zPQZE7G-Fyhb7JT0PlUw95DRI2OWGtQlF8dlQKKc7Bxg_Ed0p3EvCqH8u9OF9u1Ds",
+  avocadoSmoothie:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCo8J_k2OD0hXMTci9N1wDXnWBGxt0wAc5FlUoXFxv4d-3plygRi_lapw4yeSdv1BAl06RMc931doa6WOtX3AFAGI7QC6lE-09U5gALl_DaOaBEV4rXnBF5rIUW6RUzlWQQzXOleNLvRfEDOzm803Rp0JveJg5ueavPsodmixk_PhLPDEX_L0le735oOwFZRN46drK-8wJLNwG90wNz-MxBYHS1846dyJLpWawUnvVkRC1hYhSJq5InZJrMRJLziGkuLPdeOc_93-4",
+  mangoSmoothie:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAC5kp_DuDoqQ8xMjEmP2mojwRMK9PUXWZDsXW7KUnyApC02NsJKaS_J90MWXlgm-L7Z5mxDBWJJGKrOsz0I42pdKHn8-_t4udz2mJszYnycxV1wZP9ZEevaCRsnFerO2fV29OyOP8sBVNZUkH4vtkiGst4ovwnt-wAi9Tx01Rvm_-Weu1qmN47L7dPBMqIJjBR-W4RFjQ699Tjp4IRgTAGEMw7sqQqFLtRkyn7N2Aha0LcHoQiCP_fzaea4C7Wja5kAlwj1HeLBUQ",
+  soursopSmoothie:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuAcrXYjT_QZTrVPBz9l8VZv3Ud0MAFz_9t9UovRc1kRkYpT_3o5p8_2KHRK_5e6HnG2onNZ4Eon5NZukx1990MkvDr52F2Tc23UqQDSURPSR6cDR-Dml6ukq-YJnx1HBq9-2458SK0zH6FqhvdXtQp63PQ2Sd6lZH74GSP9_pf7inlmNBbjcnKdIekbYRrLRkFEUL2VJ_TvCkeAhB87UliYWgHM8h-4X5kDB-MnkA5G7gslAj-ezrp3MHO6Wlfud5-BjJawjqga4Ec",
   flan:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuB55vR1qhYUEOvY0xWcBLW80xhhuvFRPENBZ_gzkSiXTcmKoFswwFxs30IlGYf66qOYExaENBo5TtvYRn1iUY-4aXDrB8W5Gj0FYtmT2d2Tj9gwn_TVV6YoArdzIoQsla71Zlee-__oKVz-ggawYlKUKOqOEVKEJaSiZCdxuONmkG4ld1-gzcg64JEySIIrgVQpCFnJwNHaDbzHvtf8qhFWNnDx-zWYRd4HvjYCLAiG8Cv7Us7h_kJ6F3ri1lUp1P6NdrAS5NrEYjI",
   creamPuff:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuAI22NSKuQfXw4ougYVO9k0sNfTg3hc6aeGBJZ_1C89QEgCAkL98_FAw_V0yd_QSO3-hnbkGGMSibt05UWGwq91aNETA_bJ2UfMWOuypbxe2RmP6Rv3Sblj8k1Vuy67z6LdtKChWncxNbtHJF5T4ooxXvSkJmjIR-G0b0Wyj7JKjrMj49afpuAq1fqMm6gFnifBqRTnl5tZcL1TpKE0xwU8TD1kYZZUUdV_iv1o7PJK2wLoY1r1IZ83soVELok-46g89FP1Y5mDrkc",
   bananaCake:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuCBCr2EFHzg0tY4kbkGMiWDZUlFVfRrcfsaOYJtIQN-YMSNl-_f8svyRoZJ7IeB5RCeDc4O5Nct117U8NeqlB4Mux-ucSt_FxauLOF6wnnq0g3QkkSnYCMg9riWwzn60ZE7mmRhUpOMEr8udWa1iOQpaFs0PtY5D7rQNI0QklHXaMkAMhDozhnEwETmjYPl_0zk4iajehUF1-yJU2tB-g-1BLXl7XTIZbX8AvBIPISjuuxCcu4rPWxDAGM1gnP2V31DLuAdkUUL0CU",
+  saltedSpongeCake:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuBh8UEgzPOdGbzx_nTEIUchsKYXY5xBUwmm1CXU7EDen8Ud3r2tumxLDl_1lfjWjhT-wINBGYaX-bOTnGUDok4FYQc0cKx9rElz1QRkDO9lSUbz6iCyOwYsbjQf4DUWkT1FPViqtIvBVYujIv0qakc_oUFI1zm840N0Q5TEJiiNBrmwD3oLBllhXFdge2bRcowNqGO-BQEBJRG2HVhuCQEggrlleQ5I6_P_jg6eSEmCoafYyqJyUnLmd45jR8cXA1EIqVpzSsV5CqY",
   palmCake:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuAuypAzRFG9Xp1aZprPwIZz8a_iOXnOpO6yhXuRkMhdcwwp3EiTHlbPrjsMjzx53v1S-VxViwV-Wo6H0DDKzSY1HSAgrvlL-KonEf_ryrGFXwTy4sg5BGMuOvyaKbsA4_K4n0k-Yz3XPbrA3kmqfin3TQ23ICfszu2s_SoR813QFDPCemVjW14PsfvncNsX3GVG8O_Mlx8poaXrab8-0YLWzVZOfS5X_1PXL1ePYHzQLdDYGMOAAXgwQHPGtU13Id9Vi5er7StRja4",
   greenBeanCake:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuA_WGe0AEKIHaOZOc0dKbHiBDmya09Lx6MVz2vyRFP06dkhwmqi2TMckM3iDAQ4RBaaN6bjBUgJb1CIWHq9X2ZdFX46lHXHyot7_mCpJKqu6OadXN39NVGidsxXwrQCyeKG-UeOHnIKrtNuB4ufxy1AmPV31az_jrD-CM3sVEDpxe1hE2DmJ71Uo3K4S3GvX5sKIgkzoFLyNv3vkUuoYIzXyzqzPiN3rH2_xGN7ZZgnA6bIe0Rf-0ar0pCRDzn9W26EVPZ0eGydNRA",
   teaSet:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuBU2CWOMCIO5udF35FPH5UEBXPgmTbKqz5U_fjdxqV2oIeU2oCkDC2RrN3wSdgL50XY8mJ-Ib87VyDVq44z6PJyEpYsLRAXujmhXl0O5neTb4CdoUHGPg7IJOmIhXWTisigQJEU-3wIArDuZxwtHSR5hUgoFkuu09h94vJdZ40W94YMEB2PgTi4jVlFQxQbPcPl4ls632Mkd82UNVuSeiJaVQ4Cym4Lb5eCs_OJl7LGgtIBaXVGgDYpuz1_qVURygZExECdyr5VuXE",
+  brownSugarMilk:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuA2NwRUbhtuOXpwrtE2LnhiUN97JbnhNKTB_wM5ggkmwwoRvkvI4M4FDrGjTzhVfxeZHJHYHaUOXx5xVks_EMK8ZDeaIjYg7uZ6AeGirPqszAivnA45lDxdxn4WQS-HCu0VtXS6ykytnjIPO2WDHdahW3b3xJ6d9KIzaXJd3xJFfzxCVYzoUqBU9You-5PxbW0tI10tItVjpauV7-7e12jx2Ndy6G4aiZl7s7e542ChGRFswd0TrkfS4jR7DzimYXlAfz_12kn3GZQ",
+  hotCacao:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuDvKEWPTXSvA-d1GvSRBKgHufnVdEiQz3q4kRfGxnxAbWgKi7aMJuv1YNoNOF6-747XNWiAxvqgkeOEsrqzJmZgklkMZKoGmNvjkA1n6xCmFZP3UuKyVOu0nxzg-U1tLv0G5WT2hJQCwTOSuePGtoJIQdw4GNkRbj6QuQClZKpWdEq42Hyq8Wrry9PwuInOVL6XQEiSC1EJTV0CLh1Ytz2fxR6z9ec8SbE9bbuTB5kiEXNDd49OTywLO1UMK8hOgtYg4Lu8Kug2Xz8",
 };
 
 const exactImageByName = new Map(
@@ -96,8 +119,16 @@ const exactImageByName = new Map(
     "ca phe sua": menuImages.milkCoffee,
     "bac xiu": menuImages.bacXiu,
     "ca phe muoi": menuImages.saltedCoffee,
+    "tra dao cam sa": menuImages.peachTea,
+    "tra vai": menuImages.lycheeTea,
+    "tra chanh mat ong": menuImages.lemonHoneyTea,
+    "tra tac xi muoi": menuImages.kumquatTea,
     "tra sua truyen thong": menuImages.milkTea,
     "tra sua matcha": menuImages.matchaTea,
+    "tra sua khoai mon": menuImages.taroMilkTea,
+    "sinh to bo": menuImages.avocadoSmoothie,
+    "sinh to xoai": menuImages.mangoSmoothie,
+    "sinh to mang cau": menuImages.soursopSmoothie,
     "nuoc ep mix cam ca rot": menuImages.orangeJuice,
     "nuoc ep cam": menuImages.orangeJuice,
     "nuoc ep ca rot": menuImages.orangeJuice,
@@ -114,10 +145,14 @@ const exactImageByName = new Map(
     "muffin viet quat": menuImages.creamPuff,
     "croissant bo": menuImages.creamPuff,
     "banh chuoi nuong": menuImages.bananaCake,
+    "banh bong lan trung muoi": menuImages.saltedSpongeCake,
     "brownie hanh nhan": menuImages.palmCake,
     "banh bo thot not": menuImages.palmCake,
     "banh dau xanh": menuImages.greenBeanCake,
     "banh dau xanh nuong": menuImages.greenBeanCake,
+    "tra tao que mat ong": menuImages.teaSet,
+    "sua tuoi tran chau duong den": menuImages.brownSugarMilk,
+    "cacao nong": menuImages.hotCacao,
     "set tra banh mua thu": menuImages.teaSet,
   }),
 );
@@ -381,15 +416,16 @@ function MenuImage({
 
 export function CustomerOrder({ table, categories }: CustomerOrderProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(allCategory);
-  const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedOrder, setSubmittedOrder] = useState<
     SubmitResponse["data"] | null
   >(null);
+  const categoryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const orderedCategories = useMemo(() => {
     return [...categories]
@@ -444,29 +480,24 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
     [orderedCategories, products.length],
   );
 
-  const visibleCategories = useMemo(() => {
-    const normalizedSearch = normalizeText(searchTerm.trim());
+  const visibleCategories = useMemo(
+    () => orderedCategories.filter((category) => category.products.length > 0),
+    [orderedCategories],
+  );
 
-    return orderedCategories
-      .filter(
-        (category) =>
-          selectedCategory === allCategory ||
-          category.id === Number(selectedCategory),
-      )
-      .map((category) => ({
-        ...category,
-        products: category.products.filter((product) => {
-          if (!normalizedSearch) {
-            return true;
-          }
+  const contextCategoryIds = useMemo(
+    () =>
+      getCategoryContextIds(
+        categoryOptions.map((option) => option.id),
+        selectedCategory,
+      ),
+    [categoryOptions, selectedCategory],
+  );
 
-          return normalizeText(
-            `${product.name} ${product.description ?? ""} ${category.name}`,
-          ).includes(normalizedSearch);
-        }),
-      }))
-      .filter((category) => category.products.length > 0);
-  }, [orderedCategories, searchTerm, selectedCategory]);
+  const contextCategoryIdSet = useMemo(
+    () => new Set(contextCategoryIds),
+    [contextCategoryIds],
+  );
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const totalAmount = useMemo(
@@ -494,8 +525,108 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
     };
   }
 
-  function scrollToCart() {
-    document.getElementById("cart")?.scrollIntoView({ behavior: "smooth" });
+  useEffect(() => {
+    let animationFrame = 0;
+
+    function updateActiveCategory() {
+      const stickyOffset = 92;
+      let nextCategory = allCategory;
+
+      for (const category of orderedCategories) {
+        const categoryElement = document.getElementById(`category-${category.id}`);
+
+        if (!categoryElement) {
+          continue;
+        }
+
+        if (categoryElement.getBoundingClientRect().top <= stickyOffset) {
+          nextCategory = String(category.id);
+        } else {
+          break;
+        }
+      }
+
+      setSelectedCategory((currentCategory) =>
+        currentCategory === nextCategory ? currentCategory : nextCategory,
+      );
+    }
+
+    function queueActiveCategoryUpdate() {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updateActiveCategory);
+    }
+
+    updateActiveCategory();
+    window.addEventListener("scroll", queueActiveCategoryUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", queueActiveCategoryUpdate);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("scroll", queueActiveCategoryUpdate);
+      window.removeEventListener("resize", queueActiveCategoryUpdate);
+    };
+  }, [orderedCategories]);
+
+  useEffect(() => {
+    categoryButtonRefs.current
+      .get(selectedCategory)
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (!isCartOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsCartOpen(false);
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isCartOpen]);
+
+  function setCategoryButtonRef(
+    categoryId: string,
+    node: HTMLButtonElement | null,
+  ) {
+    if (node) {
+      categoryButtonRefs.current.set(categoryId, node);
+      return;
+    }
+
+    categoryButtonRefs.current.delete(categoryId);
+  }
+
+  function openCartSheet() {
+    setIsCartOpen(true);
+  }
+
+  function selectCategory(categoryId: string) {
+    setSelectedCategory(categoryId);
+
+    if (categoryId === allCategory) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    document
+      .getElementById(`category-${categoryId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function addToCart(product: CustomerProduct) {
@@ -590,7 +721,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
 
     if (cartItems.length === 0) {
       setError("Vui lòng chọn ít nhất một món.");
-      scrollToCart();
+      setIsCartOpen(true);
       return;
     }
 
@@ -622,6 +753,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
       setSubmittedOrder(result.data ?? null);
       setCart({});
       setNote("");
+      setIsCartOpen(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caughtError) {
       setError(
@@ -640,7 +772,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
 
     return (
       <article
-        className="group flex min-h-[252px] flex-col overflow-hidden rounded-xl border border-[#dac3ad] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(46,48,52,0.12)]"
+        className="group flex min-h-[252px] flex-col overflow-hidden rounded-[24px] border border-[#dac3ad] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(46,48,52,0.12)]"
         key={product.id}
       >
         <MenuImage
@@ -688,7 +820,10 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
             <p className="text-xs font-bold uppercase text-[#885200]">
               Giỏ hàng
             </p>
-            <h2 className="mt-1 text-2xl font-extrabold text-[#1a1c1f]">
+            <h2
+              className="mt-1 text-2xl font-extrabold text-[#1a1c1f]"
+              id="cart-title"
+            >
               Đơn của bạn
             </h2>
           </div>
@@ -699,10 +834,11 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
 
         {cartItems.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-[#dac3ad] bg-[#f9f9fe] p-4 text-sm leading-6 text-[#544433]">
-            Giỏ hàng đang trống.
+            Giỏ hàng đang trống. Chọn món bằng nút +, rồi quay lại đây để
+            ghi chú trước khi gửi đơn.
           </div>
         ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-3">
             {cartItems.map((item) => {
               const visual = getProductVisual(item.product);
 
@@ -814,205 +950,157 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
   }
 
   return (
-    <main className="min-h-dvh overflow-x-hidden bg-[#f9f9fe] pb-32 text-[#1a1c1f] md:pl-56">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 border-r border-[#dac3ad] bg-[#f3f3f8] md:flex md:flex-col">
-        <div className="flex h-full flex-col gap-3 p-4">
-          <div className="flex items-center gap-3 py-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ff9f0a] text-sm font-extrabold text-[#2b1700]">
-              N
-            </div>
-            <div className="min-w-0">
-              <p className="font-extrabold text-[#885200]">NaNa Cafe</p>
-              <p className="text-xs font-semibold text-[#544433]">
-                Phục vụ tận tâm
-              </p>
-            </div>
-          </div>
-
-          <nav className="mt-4 flex flex-1 flex-col gap-2">
-            <a
-              className="flex min-h-12 items-center gap-3 rounded-lg bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] transition active:scale-[0.98]"
-              href="#menu-top"
-            >
-              <span aria-hidden="true">H</span>
-              Trang chủ
-            </a>
-            <button
-              className="flex min-h-12 items-center gap-3 rounded-lg px-4 text-left text-sm font-bold text-[#544433] transition hover:bg-[#e1dfe1] active:scale-[0.98]"
-              onClick={scrollToCart}
-              type="button"
-            >
-              <span aria-hidden="true">+</span>
-              Giỏ hàng
-              <span className="ml-auto rounded-full bg-white px-2 py-1 text-xs text-[#885200]">
-                {totalQuantity}
-              </span>
-            </button>
-            <a
-              className="flex min-h-12 items-center gap-3 rounded-lg px-4 text-sm font-bold text-[#544433] transition hover:bg-[#e1dfe1] active:scale-[0.98]"
-              href="#categories"
-            >
-              <span aria-hidden="true">...</span>
-              Danh mục
-            </a>
-          </nav>
-
-          <div className="border-t border-[#dac3ad] pt-4 text-xs font-bold text-[#544433]">
-            © 2026 NaNa F&B
-          </div>
-        </div>
-      </aside>
-
-      <header className="sticky top-0 z-30 border-b border-[#dac3ad] bg-[rgba(255,255,255,0.78)] backdrop-blur-xl">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1200px] items-center gap-3 px-4 md:px-6">
-          <div className="flex items-center gap-3 md:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ff9f0a] text-sm font-extrabold text-[#2b1700]">
-              N
-            </div>
-            <span className="font-extrabold text-[#885200]">NaNa</span>
-          </div>
-
-          <h1 className="hidden text-xl font-extrabold text-[#885200] md:block">
-            NaNa
-          </h1>
-
-          <div className="relative ml-auto flex-1 md:ml-4 md:max-w-xl">
-            <input
-              aria-label="Tìm kiếm sản phẩm"
-              className="min-h-11 w-full rounded-full border border-[#877461] bg-[#f3f3f8] px-4 py-2 text-sm outline-none transition focus:border-[#885200] focus:bg-white focus:ring-2 focus:ring-[#ffb868]"
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Tìm kiếm sản phẩm"
-              type="search"
-              value={searchTerm}
-            />
-          </div>
-
-          <button
-            aria-label="Đi tới giỏ hàng"
-            className="flex h-11 min-w-11 items-center justify-center rounded-full text-sm font-extrabold text-[#885200] transition hover:bg-[#ffddbb] focus:outline-none focus:ring-2 focus:ring-[#885200]"
-            onClick={scrollToCart}
-            type="button"
-          >
-            {totalQuantity}
-          </button>
-        </div>
-      </header>
-
-      <div
-        className="mx-auto w-full max-w-[1200px] px-4 py-5 md:px-6 md:py-8"
-        id="menu-top"
-      >
-        <section className="mb-6">
-          <div className="mb-4 flex items-center justify-between rounded-xl border border-[#ffb868] bg-[#ffddbb] px-4 py-3 text-[#2b1700]">
-            <div className="flex min-w-0 items-center gap-3">
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2b1700] text-sm font-extrabold text-white"
-              >
-                i
-              </span>
-              <p className="truncate text-sm font-extrabold">
-                Đã chọn {table.name}
-              </p>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[220px] overflow-hidden rounded-[24px] bg-[#2e3034] shadow-[0_18px_42px_rgba(46,48,52,0.16)] md:min-h-[280px]">
-            <MenuImage
-              className="absolute inset-0 h-full w-full opacity-90 transition duration-700 group-hover:scale-[1.03]"
-              image={heroImage}
-              label="Banner menu NaNa Cafe"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(46,48,52,0.05),rgba(0,0,0,0.72))]" />
-            <div className="relative flex min-h-[220px] flex-col justify-end p-5 md:min-h-[280px] md:p-7">
-              <p className="text-sm font-bold text-white/85">NaNa Cafe & Tea</p>
-              <h2 className="mt-2 max-w-xl text-3xl font-extrabold leading-tight text-white md:text-5xl">
-                Thực Đơn NaNa
-              </h2>
-              <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-white/85 md:text-base">
-                Hương vị mộc mạc, trải nghiệm tinh tế.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {message ? (
-          <div
-            className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-800 shadow-sm"
-            role="status"
-          >
-            {message}
-            {submittedOrder ? (
-              <div className="mt-3 rounded-lg bg-white/85 p-3 text-[#1a1c1f]">
-                <p>Đơn #{submittedOrder.id}</p>
-                <p>
-                  Trạng thái:{" "}
-                  {statusLabel[submittedOrder.status] ?? submittedOrder.status}
-                </p>
-                <p>Tổng tiền: {formatMoney(submittedOrder.totalAmount)}</p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div
-            className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700 shadow-sm"
-            role="alert"
-          >
-            {error}
-          </div>
-        ) : null}
-
-        <nav
-          aria-label="Danh mục món"
-          className="sticky top-16 z-20 -mx-4 mb-6 border-y border-[#dac3ad] bg-[rgba(249,249,254,0.9)] px-4 py-3 backdrop-blur-xl md:mx-0 md:rounded-xl md:border"
-          id="categories"
-        >
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-            {categoryOptions.map((option) => {
-              const isActive = selectedCategory === option.id;
-
-              return (
-                <button
-                  aria-pressed={isActive}
-                  className={
-                    isActive
-                      ? "min-h-11 shrink-0 rounded-full bg-[#ff9f0a] px-5 text-sm font-extrabold text-[#2b1700] shadow-sm transition active:scale-[0.98]"
-                      : "min-h-11 shrink-0 rounded-full border border-[#dac3ad] bg-white px-5 text-sm font-bold text-[#544433] transition hover:bg-[#ffddbb] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#885200]"
-                  }
-                  key={option.id}
-                  onClick={() => setSelectedCategory(option.id)}
-                  type="button"
+    <main className="min-h-dvh overflow-x-clip bg-[#e8e8ed] text-[#1a1c1f]">
+      <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-[#f9f9fe] pb-24 shadow-[0_0_40px_rgba(46,48,52,0.14)] md:border-x md:border-[#dac3ad]">
+        <div className="px-4 py-4" id="menu-top">
+          <section className="mb-5">
+            <div className="mb-3 flex items-center justify-between rounded-2xl border border-[#ffb868] bg-[#ffddbb] px-4 py-3 text-[#2b1700]">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2b1700] text-sm font-extrabold text-white"
                 >
-                  {option.name} · {option.count}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+                  i
+                </span>
+                <p className="truncate text-sm font-extrabold">
+                  Đã chọn {table.name}
+                </p>
+              </div>
+            </div>
 
-        <div className="space-y-8">
-          {visibleCategories.length === 0 ? (
-            <section className="rounded-xl border border-[#dac3ad] bg-white p-6 text-sm font-semibold text-[#544433] shadow-sm">
-              Không tìm thấy món phù hợp.
-            </section>
+            <div className="group relative min-h-[188px] overflow-hidden rounded-[24px] bg-[#2e3034] shadow-[0_18px_36px_rgba(46,48,52,0.16)]">
+              <MenuImage
+                className="absolute inset-0 h-full w-full opacity-90 transition duration-700 group-hover:scale-[1.03]"
+                image={heroImage}
+                label="Banner menu NaNa Cafe"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(46,48,52,0.05),rgba(0,0,0,0.72))]" />
+              <div className="relative flex min-h-[188px] flex-col justify-end p-5">
+                <p className="text-xs font-bold text-white/85">
+                  NaNa Cafe & Tea
+                </p>
+                <h2 className="mt-2 text-3xl font-extrabold leading-tight text-white">
+                  Thực Đơn NaNa
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-white/85">
+                  Hương vị mộc mạc, trải nghiệm tinh tế.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {message ? (
+            <div
+              className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-800 shadow-sm"
+              role="status"
+            >
+              {message}
+              {submittedOrder ? (
+                <div className="mt-3 rounded-lg bg-white/85 p-3 text-[#1a1c1f]">
+                  <p>Đơn #{submittedOrder.id}</p>
+                  <p>
+                    Trạng thái:{" "}
+                    {statusLabel[submittedOrder.status] ??
+                      submittedOrder.status}
+                  </p>
+                  <p>Tổng tiền: {formatMoney(submittedOrder.totalAmount)}</p>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
-          {visibleCategories.map((category) => {
-            const visual = getCategoryVisual(category.name);
-            const categoryIndex = orderedCategories.findIndex(
-              (item) => item.id === category.id,
-            );
+          {error ? (
+            <div
+              className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700 shadow-sm"
+              role="alert"
+            >
+              {error}
+            </div>
+          ) : null}
 
-            return (
-              <section
-                className="scroll-mt-36"
-                id={`category-${category.id}`}
-                key={category.id}
+          <nav
+            aria-label="Danh mục món"
+            className="sticky top-0 z-20 -mx-4 mb-4 border-y border-[#dac3ad] bg-[rgba(249,249,254,0.96)] px-3 py-1.5 shadow-[0_10px_24px_rgba(46,48,52,0.08)] backdrop-blur-xl"
+            id="categories"
+          >
+            <div className="relative">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 z-10 flex w-12 items-center justify-end bg-[linear-gradient(90deg,rgba(249,249,254,0),rgba(249,249,254,0.96)_58%,rgba(249,249,254,1))] pr-1 text-xl font-bold text-[#885200]"
               >
-                <div className="mb-4 flex items-center justify-between border-b border-[#dac3ad] pb-3">
-                  <div>
+                ›
+              </div>
+              <div className="flex snap-x gap-1.5 overflow-x-auto pb-0.5 pr-9 [scrollbar-width:thin]">
+              {categoryOptions.map((option) => {
+                const isActive = selectedCategory === option.id;
+                const isContextCategory = contextCategoryIdSet.has(option.id);
+                const optionVisual =
+                  option.id === allCategory
+                    ? {
+                        image: "/images/menu/all.svg",
+                      }
+                    : getCategoryVisual(option.name);
+
+                return (
+                  <button
+                    aria-current={isActive ? "true" : undefined}
+                    aria-pressed={isActive}
+                    className={`flex min-h-11 shrink-0 snap-center items-center gap-1.5 rounded-xl px-2 text-left transition active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#885200] ${
+                      isActive ? "max-w-[130px]" : "max-w-[112px]"
+                    } ${
+                      isActive
+                        ? "border border-[#ff9f0a] bg-[#ff9f0a] text-[#2b1700] shadow-[0_8px_18px_rgba(255,159,10,0.28)]"
+                        : "border border-[#dac3ad] bg-white text-[#544433] hover:bg-[#fff4e2]"
+                    } ${isContextCategory ? "opacity-100" : "opacity-80"}`}
+                    key={option.id}
+                    onClick={() => selectCategory(option.id)}
+                    ref={(node) => setCategoryButtonRef(option.id, node)}
+                    type="button"
+                  >
+                    <MenuImage
+                      backgroundSize="cover"
+                      className="h-5 w-5 shrink-0 rounded-full bg-[#fff4e2]"
+                      image={optionVisual.image}
+                      label={`Danh mục ${option.name}`}
+                    />
+                    <span
+                      className={`min-w-0 ${
+                        isActive ? "max-w-[90px]" : "max-w-[72px]"
+                      }`}
+                    >
+                      <span className="block truncate text-xs font-extrabold leading-4">
+                        {option.name}
+                      </span>
+                      <span className="block text-[10px] font-bold leading-3 opacity-75">
+                        {option.count} món
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+              </div>
+            </div>
+          </nav>
+
+          <div className="space-y-7">
+            {visibleCategories.length === 0 ? (
+              <section className="rounded-xl border border-[#dac3ad] bg-white p-6 text-sm font-semibold text-[#544433] shadow-sm">
+                Danh mục này chưa có món.
+              </section>
+            ) : null}
+
+            {visibleCategories.map((category) => {
+              const categoryIndex = orderedCategories.findIndex(
+                (item) => item.id === category.id,
+              );
+
+              return (
+                <section
+                  className="scroll-mt-24"
+                  id={`category-${category.id}`}
+                  key={category.id}
+                >
+                  <div className="mb-3 border-b border-[#dac3ad] pb-3">
                     <h2 className="text-xl font-extrabold text-[#1a1c1f]">
                       {categoryIndex + 1}. {category.name}
                     </h2>
@@ -1020,50 +1108,71 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
                       {category.products.length} món
                     </p>
                   </div>
-                  <div
-                    className="hidden h-12 w-12 rounded-xl bg-[#fff4e2] md:block"
-                    style={{ backgroundColor: visual.soft }}
-                  >
-                    <MenuImage
-                      className="h-full w-full rounded-xl"
-                      image={visual.image}
-                      label={getMenuImageLabel(category.name)}
-                    />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {category.products.map((product) => renderProductCard(product))}
                   </div>
-                </div>
+                </section>
+              );
+            })}
 
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {category.products.map((product) => renderProductCard(product))}
-                </div>
-              </section>
-            );
-          })}
-
-          {renderCartPanel()}
+          </div>
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#dac3ad] bg-[rgba(255,255,255,0.92)] px-4 py-3 shadow-[0_-12px_30px_rgba(46,48,52,0.12)] backdrop-blur-xl md:left-56">
-        <div className="mx-auto flex max-w-[1200px] items-center gap-3">
+      {isCartOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-0">
           <button
-            className="min-h-12 flex-1 rounded-lg border border-[#dac3ad] bg-white px-4 text-left transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
-            onClick={scrollToCart}
+            aria-label="Đóng giỏ hàng"
+            className="absolute inset-0 bg-black/45"
+            onClick={() => setIsCartOpen(false)}
+            type="button"
+          />
+          <div
+            aria-labelledby="cart-title"
+            aria-modal="true"
+            className="relative z-10 max-h-[88dvh] w-full max-w-[430px] overflow-y-auto rounded-t-[28px] bg-[#f9f9fe] p-4 shadow-[0_-20px_50px_rgba(0,0,0,0.28)]"
+            role="dialog"
+          >
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-3 border-b border-[#dac3ad] bg-[rgba(249,249,254,0.96)] px-4 pb-3 pt-3 backdrop-blur-xl">
+              <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-[#c9b39e]" />
+              <div className="flex justify-end">
+                <button
+                  className="min-h-11 rounded-full border border-[#dac3ad] bg-white px-4 text-sm font-extrabold text-[#544433] transition hover:bg-[#fff4e2] focus:outline-none focus:ring-2 focus:ring-[#885200]"
+                  onClick={() => setIsCartOpen(false)}
+                  type="button"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+
+            {renderCartPanel()}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5">
+        <div className="mx-auto flex max-w-[430px] items-center gap-2 rounded-t-2xl border border-b-0 border-[#dac3ad] bg-[rgba(255,255,255,0.95)] p-1.5 shadow-[0_-10px_24px_rgba(46,48,52,0.12)] backdrop-blur-xl">
+          <button
+            className="min-h-11 flex-1 rounded-xl border border-[#dac3ad] bg-white px-3 text-left transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
+            onClick={openCartSheet}
             type="button"
           >
-            <span className="block text-xs font-bold uppercase text-[#885200]">
+            <span className="block text-[11px] font-bold uppercase leading-4 text-[#885200]">
               Tạm tính
             </span>
-            <span className="block text-lg font-extrabold tabular-nums text-[#1a1c1f]">
+            <span className="block text-base font-extrabold leading-5 tabular-nums text-[#1a1c1f]">
               {formatMoney(totalAmount)}
             </span>
           </button>
           <button
-            className="min-h-12 rounded-lg bg-[#ff9f0a] px-5 text-sm font-extrabold text-[#2b1700] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-[#885200]"
-            disabled={cartItems.length === 0 || isSubmitting}
-            onClick={handleSubmit}
+            aria-label="Mở giỏ hàng để ghi chú và gửi đơn"
+            className="min-h-11 rounded-xl bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#885200]"
+            onClick={openCartSheet}
             type="button"
           >
-            {isSubmitting ? "Đang gửi..." : `Gửi đơn (${totalQuantity})`}
+            Giỏ hàng ({totalQuantity})
           </button>
         </div>
       </div>

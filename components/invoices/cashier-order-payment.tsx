@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  CountPill,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
@@ -105,25 +113,25 @@ async function fetchServedOrders() {
 
 function InvoicePreview({ invoice }: { invoice: Invoice }) {
   return (
-    <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+    <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
         Hóa đơn vừa tạo
       </p>
       <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-[#1f2933]">
+          <h2 className="text-xl font-black text-[#172027]">
             Hóa đơn #{invoice.id}
           </h2>
           <p className="mt-1 text-sm text-emerald-700">
             Đơn #{invoice.orderId} - {invoice.order.table.name}
           </p>
         </div>
-        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700">
+        <span className="pos-badge bg-white text-emerald-700">
           {paymentLabel[invoice.paymentMethod]}
         </span>
       </div>
 
-      <div className="mt-4 rounded-md bg-white p-3">
+      <div className="mt-4 rounded-2xl bg-white p-3">
         {invoice.order.items.map((item) => (
           <div
             className="flex justify-between gap-3 border-b border-emerald-100 py-2 text-sm last:border-b-0"
@@ -265,58 +273,38 @@ export function CashierOrderPayment() {
   }
 
   return (
-    <main className="bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="rounded-lg border border-[#ded8cc] bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5d50]">
-                Cashier
-              </p>
-              <h1 className="mt-3 text-2xl font-bold text-[#1f2933] sm:text-3xl">
-                Thanh toán đơn hàng
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-[#625b50]">
-                Chọn đơn đã phục vụ, xác nhận phương thức thanh toán và tạo hóa đơn.
-              </p>
-            </div>
-            <button
-              className="rounded-md border border-[#d6d1c7] px-4 py-2 text-sm font-semibold text-[#3b352d] transition hover:bg-[#f7f7f2] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isLoading}
-              onClick={loadOrders}
-              type="button"
-            >
-              Làm mới
-            </button>
-          </div>
-        </div>
+    <PageShell>
+      <PageHero
+        eyebrow="Cashier"
+        title="Thanh toán đơn hàng"
+        description="Chọn đơn đã phục vụ, xác nhận phương thức thanh toán và tạo hóa đơn với ít thao tác nhất."
+        actions={
+          <button
+            className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isLoading}
+            onClick={loadOrders}
+            type="button"
+          >
+            Làm mới
+          </button>
+        }
+      />
 
-        {message ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-            {message}
-          </div>
-        ) : null}
+      {message ? <Alert tone="success">{message}</Alert> : null}
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        {paidInvoice ? <InvoicePreview invoice={paidInvoice} /> : null}
+      {paidInvoice ? <InvoicePreview invoice={paidInvoice} /> : null}
 
-        <section className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-          <aside className="h-fit min-w-0 rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#eee7dd] p-4">
-              <h2 className="text-lg font-bold text-[#1f2933]">
-                Đơn đã phục vụ
-              </h2>
-              <span className="rounded-full bg-[#f7f7f2] px-3 py-1 text-sm font-semibold text-[#625b50]">
-                {orders.length} đơn
-              </span>
-            </div>
+      <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <Panel className="h-fit min-w-0 overflow-hidden">
+          <PanelHeader
+            title="Đơn đã phục vụ"
+            description="Các đơn chờ chốt thanh toán."
+            aside={<CountPill>{orders.length} đơn</CountPill>}
+          />
 
-            <div className="flex max-h-[680px] flex-col gap-3 overflow-y-auto p-4">
+          <div className="flex max-h-[680px] flex-col gap-3 overflow-y-auto p-4">
               {isLoading ? (
                 <p className="text-sm text-[#625b50]">Đang tải đơn hàng...</p>
               ) : null}
@@ -331,8 +319,8 @@ export function CashierOrderPayment() {
                 <button
                   className={
                     selectedOrderId === order.id
-                      ? "rounded-lg border border-[#2f5d50] bg-[#eff7f2] p-4 text-left shadow-sm"
-                      : "rounded-lg border border-[#ded8cc] bg-white p-4 text-left shadow-sm transition hover:bg-[#f7f7f2]"
+                      ? "rounded-2xl border border-[#2f5d50] bg-[#eff7f2] p-4 text-left shadow-sm"
+                      : "rounded-2xl border border-[#eadfce] bg-white p-4 text-left shadow-sm transition hover:bg-[#fff7ea]"
                   }
                   key={order.id}
                   onClick={() => {
@@ -352,8 +340,8 @@ export function CashierOrderPayment() {
                         {order.table.name}
                       </p>
                     </div>
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                      SERVED
+                    <span className="pos-badge bg-emerald-50 text-emerald-700">
+                      Đã phục vụ
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-[#625b50]">
@@ -364,14 +352,14 @@ export function CashierOrderPayment() {
                   </p>
                 </button>
               ))}
-            </div>
-          </aside>
+          </div>
+        </Panel>
 
-          <section className="min-w-0 rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
+        <Panel className="min-w-0 p-5">
             {!selectedOrder ? (
-              <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed border-[#d6d1c7] p-6 text-center">
+              <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-dashed border-[#cfc2b2] bg-[#fffdf9] p-6 text-center">
                 <div>
-                  <h2 className="text-xl font-bold text-[#1f2933]">
+                  <h2 className="text-xl font-black text-[#172027]">
                     Chọn một đơn để thanh toán
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#625b50]">
@@ -383,21 +371,21 @@ export function CashierOrderPayment() {
               <div className="flex flex-col gap-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#625b50]">
+                    <p className="text-sm font-bold text-[#6d645a]">
                       Chi tiết đơn #{selectedOrder.id}
                     </p>
-                    <h2 className="mt-1 text-2xl font-bold text-[#1f2933]">
+                    <h2 className="mt-1 text-2xl font-black text-[#172027]">
                       {selectedOrder.table.name}
                     </h2>
                   </div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <span className="pos-badge bg-emerald-50 text-emerald-700">
                     Đã phục vụ
                   </span>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-[#eee7dd]">
-                  <table className="w-full min-w-[620px] border-collapse text-sm">
-                    <thead className="bg-[#f7f7f2] text-left text-xs uppercase tracking-wide text-[#6b6254]">
+                <div className="overflow-x-auto rounded-2xl border border-[#eadfce]">
+                  <table className="pos-table min-w-[620px]">
+                    <thead>
                       <tr>
                         <th className="px-4 py-3">Món</th>
                         <th className="px-4 py-3 text-right">Số lượng</th>
@@ -407,7 +395,7 @@ export function CashierOrderPayment() {
                     </thead>
                     <tbody>
                       {selectedOrder.items.map((item) => (
-                        <tr className="border-t border-[#eee7dd]" key={item.id}>
+                        <tr className="border-t border-[#eadfce]" key={item.id}>
                           <td className="px-4 py-3">
                             <p className="font-semibold text-[#1f2933]">
                               {item.productName}
@@ -433,8 +421,8 @@ export function CashierOrderPayment() {
                   </table>
                 </div>
 
-                <div className="rounded-md bg-[#f7f7f2] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#625b50]">
+                <div className="rounded-2xl bg-[#f8f3ea] p-4">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#6d645a]">
                     Ghi chú đơn
                   </p>
                   <p className="mt-1 text-sm text-[#3b352d]">
@@ -446,7 +434,7 @@ export function CashierOrderPayment() {
                   <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
                     Phương thức thanh toán
                     <select
-                      className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                      className="pos-input"
                       onChange={(event) =>
                         setPaymentMethod(event.target.value as PaymentMethod)
                       }
@@ -467,7 +455,7 @@ export function CashierOrderPayment() {
                     </span>
                   </label>
 
-                  <div className="rounded-md border border-[#eee7dd] p-4">
+                  <div className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-[#625b50]">
                         Tổng tiền
@@ -477,7 +465,7 @@ export function CashierOrderPayment() {
                       </span>
                     </div>
                     <button
-                      className="mt-4 w-full rounded-md bg-[#2f5d50] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#24483e] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="pos-button-primary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={isPaying}
                       onClick={handlePay}
                       type="button"
@@ -488,7 +476,7 @@ export function CashierOrderPayment() {
                 </div>
 
                 {paymentMethod === "QR_PAYMENT" ? (
-                  <div className="rounded-lg border border-[#ded8cc] bg-[#f7f7f2] p-4">
+                  <div className="rounded-2xl border border-[#d8cdbc] bg-[#f8f3ea] p-4">
                     <p className="text-sm font-bold text-[#1f2933]">
                       QR Payment mô phỏng
                     </p>
@@ -499,9 +487,8 @@ export function CashierOrderPayment() {
                 ) : null}
               </div>
             )}
-          </section>
-        </section>
+        </Panel>
       </section>
-    </main>
+    </PageShell>
   );
 }

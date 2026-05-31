@@ -17,21 +17,21 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="border-b border-[#ded8cc] bg-[#1f2933] text-white md:sticky md:top-0 md:h-dvh md:w-64 md:shrink-0 md:overflow-y-auto md:border-b-0 md:border-r md:border-white/10">
+    <aside className="border-b border-black/10 bg-[#172027] text-white shadow-[18px_0_50px_rgba(23,32,39,0.12)] md:sticky md:top-0 md:h-dvh md:w-72 md:shrink-0 md:overflow-y-auto md:border-b-0 md:border-r md:border-white/10">
       <div className="flex h-full flex-col">
-        <div className="border-b border-white/10 px-4 py-4 md:px-5 md:py-5">
+        <div className="border-b border-white/10 px-4 py-4 md:px-5 md:py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#9fd3c7] text-sm font-black text-[#1f2933]">
-              POS
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#ff9f0a] text-sm font-black text-[#2b1700] shadow-[0_14px_28px_rgba(255,159,10,0.22)]">
+              N
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#9fd3c7]">
+              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#9fd3c7]">
                 Admin
               </p>
-              <h2 className="truncate text-xl font-bold">Cafe POS</h2>
+              <h2 className="truncate text-xl font-black">NaNa POS</h2>
             </div>
           </div>
-          <p className="mt-3 max-w-52 text-sm leading-6 text-white/65">
+          <p className="mt-4 max-w-56 text-sm leading-6 text-white/68">
             Quản trị danh mục, sản phẩm, bàn, đơn hàng và hóa đơn.
           </p>
         </div>
@@ -47,8 +47,8 @@ export function AdminSidebar() {
               <Link
                 className={
                   isActive
-                    ? "shrink-0 rounded-md bg-white px-3 py-2 text-sm font-bold text-[#1f2933] shadow-sm md:shrink md:px-4 md:py-3"
-                    : "shrink-0 rounded-md px-3 py-2 text-sm font-semibold text-white/75 transition hover:bg-white/10 hover:text-white md:shrink md:px-4 md:py-3"
+                    ? "shrink-0 rounded-2xl bg-white px-3 py-2 text-sm font-black text-[#172027] shadow-sm md:shrink md:px-4 md:py-3"
+                    : "shrink-0 rounded-2xl px-3 py-2 text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white md:shrink md:px-4 md:py-3"
                 }
                 href={route.href}
                 aria-current={isActive ? "page" : undefined}
@@ -62,7 +62,7 @@ export function AdminSidebar() {
 
         <div className="border-t border-white/10 p-3 md:p-4">
           <LogoutButton
-            className="w-full rounded-md border border-white/20 px-3 py-2 text-left text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:px-4 md:py-3"
+            className="w-full rounded-2xl border border-white/18 px-3 py-2 text-left text-sm font-bold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 md:px-4 md:py-3"
           />
         </div>
       </div>

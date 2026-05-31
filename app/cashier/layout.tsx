@@ -9,7 +9,7 @@ export default async function CashierLayout({
   const session = await getCurrentSession();
 
   return (
-    <div className="min-h-screen bg-[#f7f7f2]">
+    <div className="min-h-screen bg-transparent">
       <RoleHeader
         badge="Cashier"
         title="Khu vực thu ngân"

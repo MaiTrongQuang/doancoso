@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
 
 type RecentOrder = {
@@ -180,54 +187,43 @@ export function DashboardContent() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="rounded-lg border border-[#ded8cc] bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5d50]">
-            Admin
-          </p>
-          <h1 className="mt-3 text-2xl font-bold text-[#1f2933] sm:text-3xl">
-            Dashboard thống kê
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-[#625b50]">
-            Theo dõi doanh thu, đơn hàng, món bán chạy và phương thức thanh toán từ dữ liệu thật.
-          </p>
-        </div>
+    <PageShell>
+      <PageHero
+        eyebrow="Admin"
+        title="Dashboard thống kê"
+        description="Theo dõi doanh thu, đơn hàng, món bán chạy và phương thức thanh toán từ dữ liệu thật."
+      />
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {cards.map((card) => (
             <div
               key={card.label}
-              className="rounded-lg border border-[#ded8cc] bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-[#eadfce] bg-white/92 p-4 shadow-[0_10px_28px_rgba(31,36,40,0.06)]"
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#6b6254]">
+              <p className="text-xs font-extrabold uppercase tracking-[0.1em] text-[#6d645a]">
                 {card.label}
               </p>
-              <p className="mt-3 text-2xl font-bold text-[#1f2933]">
+              <p className="mt-3 text-2xl font-black text-[#172027]">
                 {isLoading ? "Đang tải..." : card.value}
               </p>
             </div>
           ))}
-        </div>
+      </div>
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.7fr)]">
-          <div className="min-w-0 rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.7fr)]">
+        <Panel className="min-w-0 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-[#1f2933]">
+                <h2 className="text-lg font-black text-[#172027]">
                   Doanh thu 7 ngày
                 </h2>
                 <p className="mt-1 text-sm text-[#625b50]">
                   Tổng 7 ngày: {formatMoney(totalRevenueInChart)}
                 </p>
               </div>
-              <span className="rounded-full bg-[#eff7f2] px-3 py-1 text-sm font-bold text-[#2f5d50]">
+              <span className="pos-badge bg-[#eff7f2] text-[#2f5d50]">
                 {data?.dailyRevenue.reduce(
                   (total, item) => total + item.paidOrderCount,
                   0,
@@ -236,14 +232,14 @@ export function DashboardContent() {
               </span>
             </div>
 
-            <div className="mt-6 grid h-56 grid-cols-7 items-end gap-3 border-b border-[#eee7dd] pb-4">
+            <div className="mt-6 grid h-56 grid-cols-7 items-end gap-3 border-b border-[#eadfce] pb-4">
               {isLoading
                 ? Array.from({ length: 7 }, (_, index) => (
                     <div
                       className="flex h-full items-end justify-center"
                       key={index}
                     >
-                      <div className="h-16 w-full max-w-16 rounded-t-md bg-[#eee7dd]" />
+                      <div className="h-16 w-full max-w-16 rounded-t-xl bg-[#eadfce]" />
                     </div>
                   ))
                 : data?.dailyRevenue.map((item) => (
@@ -256,7 +252,7 @@ export function DashboardContent() {
                         {item.paidOrderCount}
                       </span>
                       <div
-                        className="w-full max-w-16 rounded-t-md bg-[#2f5d50]"
+                        className="w-full max-w-16 rounded-t-xl bg-[#2f5d50]"
                         style={{
                           height: `${getBarHeight(item.revenue, maxRevenue)}px`,
                         }}
@@ -277,29 +273,29 @@ export function DashboardContent() {
                 </div>
               ))}
             </div>
-          </div>
+        </Panel>
 
-          <div className="min-w-0 rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-[#1f2933]">
+        <Panel className="min-w-0 p-5">
+            <h2 className="text-lg font-black text-[#172027]">
               Top món bán chạy
             </h2>
 
             <div className="mt-4 flex flex-col gap-3">
               {isLoading ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-5 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Đang tải thống kê món bán chạy...
                 </div>
               ) : null}
 
               {!isLoading && data?.topProducts.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-5 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Chưa có món nào trong hóa đơn đã thanh toán.
                 </div>
               ) : null}
 
               {data?.topProducts.map((product, index) => (
                 <article
-                  className="rounded-lg border border-[#eee7dd] p-4"
+                  className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
                   key={product.productId}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -311,7 +307,7 @@ export function DashboardContent() {
                         {product.productName}
                       </h3>
                     </div>
-                    <span className="rounded-full bg-[#f7f7f2] px-3 py-1 text-xs font-bold text-[#625b50]">
+                    <span className="pos-badge bg-[#f8f3ea] text-[#6d645a]">
                       {product.quantity} món
                     </span>
                   </div>
@@ -321,18 +317,18 @@ export function DashboardContent() {
                 </article>
               ))}
             </div>
-          </div>
-        </section>
+        </Panel>
+      </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-[#1f2933]">
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Panel className="p-5">
+            <h2 className="text-lg font-black text-[#172027]">
               Phương thức thanh toán
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {(data?.paymentStats ?? []).map((payment) => (
                 <div
-                  className="rounded-lg border border-[#eee7dd] p-4"
+                  className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
                   key={payment.paymentMethod}
                 >
                   <span
@@ -349,16 +345,16 @@ export function DashboardContent() {
                 </div>
               ))}
             </div>
-          </div>
+        </Panel>
 
-          <div className="rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-[#1f2933]">
+        <Panel className="p-5">
+            <h2 className="text-lg font-black text-[#172027]">
               Trạng thái đơn hàng
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {(data?.orderStatusStats ?? []).map((item) => (
                 <div
-                  className="flex items-center justify-between gap-3 rounded-lg border border-[#eee7dd] p-4"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
                   key={item.status}
                 >
                   <span
@@ -372,19 +368,15 @@ export function DashboardContent() {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
+        </Panel>
+      </section>
 
-        <section className="min-w-0 rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-          <div className="border-b border-[#eee7dd] p-4">
-            <h2 className="text-lg font-bold text-[#1f2933]">
-              5 đơn hàng gần nhất
-            </h2>
-          </div>
+      <Panel className="min-w-0 overflow-hidden">
+        <PanelHeader title="5 đơn hàng gần nhất" />
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead className="bg-[#f7f7f2] text-left text-xs uppercase tracking-wide text-[#6b6254]">
+            <table className="pos-table min-w-[760px]">
+              <thead>
                 <tr>
                   <th className="px-4 py-3">Mã đơn</th>
                   <th className="px-4 py-3">Bàn</th>
@@ -412,7 +404,7 @@ export function DashboardContent() {
                 ) : null}
 
                 {data?.recentOrders.map((order) => (
-                  <tr key={order.id} className="border-t border-[#eee7dd]">
+                  <tr key={order.id} className="border-t border-[#eadfce]">
                     <td className="px-4 py-3 font-semibold text-[#1f2933]">
                       #{order.id}
                     </td>
@@ -440,8 +432,7 @@ export function DashboardContent() {
               </tbody>
             </table>
           </div>
-        </section>
-      </section>
-    </main>
+      </Panel>
+    </PageShell>
   );
 }

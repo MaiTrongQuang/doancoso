@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  CountPill,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
 
 type StaffOrderStatus = "PENDING" | "CONFIRMED" | "PREPARING";
@@ -260,94 +268,75 @@ export function StaffOrderBoard() {
   }
 
   return (
-    <main className="bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <div className="overflow-hidden rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-          <div className="h-1.5 bg-[#2f5d50]" />
-          <div className="flex flex-wrap items-start justify-between gap-4 p-6">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f5d50]">
-                Staff
-              </p>
-              <h1 className="mt-3 text-2xl font-black text-[#1f2933] sm:text-3xl">
-                Bếp nhận đơn tức thì
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#625b50]">
-                Đơn khách gửi sẽ tự vào màn hình bếp. Nhân viên chỉ cần chuẩn bị món và chuyển sang đã phục vụ.
-              </p>
-            </div>
-            <button
-              className="rounded-md border border-[#d6d1c7] bg-white px-4 py-2 text-sm font-bold text-[#3b352d] transition hover:bg-[#f7f7f2] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isLoading}
-              onClick={loadOrders}
-              type="button"
-            >
-              Làm mới
-            </button>
-          </div>
-        </div>
-
-        <section className="grid gap-3 sm:grid-cols-2">
-          {statusCards.map((card) => (
-            <div
-              className="overflow-hidden rounded-lg border border-[#ded8cc] bg-white shadow-sm"
-              key={card.key}
-            >
+    <PageShell maxWidthClassName="max-w-7xl">
+      <PageHero
+        eyebrow="Staff"
+        title="Bếp nhận đơn tức thì"
+        description="Đơn khách gửi sẽ tự vào màn hình bếp. Nhân viên tập trung vào món cần làm, chuyển trạng thái nhanh và không bỏ sót ghi chú."
+        actions={
+          <button
+            className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isLoading}
+            onClick={loadOrders}
+            type="button"
+          >
+            Làm mới
+          </button>
+        }
+        meta={
+          <section className="grid gap-3 sm:grid-cols-2">
+            {statusCards.map((card) => (
               <div
-                className={
-                  card.key === "RECEIVED"
-                    ? "h-1 bg-sky-500"
-                    : "h-1 bg-violet-500"
-                }
-              />
-              <div className="flex items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="text-sm font-bold text-[#625b50]">
-                    {card.label}
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-[#1f2933]">
-                    {orderCountByStatus[card.key]}
-                  </p>
+                className="rounded-2xl border border-[#eadfce] bg-white/78 p-4 shadow-sm"
+                key={card.key}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-extrabold text-[#6d645a]">
+                      {card.label}
+                    </p>
+                    <p className="mt-2 text-3xl font-black text-[#172027]">
+                      {orderCountByStatus[card.key]}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      card.key === "RECEIVED"
+                        ? "pos-badge bg-sky-50 text-sky-700"
+                        : "pos-badge bg-violet-50 text-violet-700"
+                    }
+                  >
+                    Đang mở
+                  </span>
                 </div>
-                <span
-                  className={
-                    card.key === "RECEIVED"
-                      ? "rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700"
-                      : "rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700"
-                  }
-                >
-                  Đang mở
-                </span>
               </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </section>
+        }
+      />
 
-        {message ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 shadow-sm">
-            {message}
-          </div>
-        ) : null}
+      {message ? <Alert tone="success">{message}</Alert> : null}
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        {isLoading ? (
-          <div className="rounded-lg border border-[#ded8cc] bg-white p-5 text-sm text-[#625b50] shadow-sm">
-            Đang tải danh sách đơn hàng...
-          </div>
-        ) : null}
+      {isLoading ? (
+        <Panel className="p-5 text-sm font-semibold text-[#6d645a]">
+          Đang tải danh sách đơn hàng...
+        </Panel>
+      ) : null}
 
-        {!isLoading && orders.length === 0 ? (
-          <div className="rounded-lg border border-[#ded8cc] bg-white p-5 text-sm text-[#625b50] shadow-sm">
-            Hiện chưa có đơn nào cần xử lý.
-          </div>
-        ) : null}
+      {!isLoading && orders.length === 0 ? (
+        <div className="pos-empty">Hiện chưa có đơn nào cần xử lý.</div>
+      ) : null}
 
-        <section className="grid items-stretch gap-4 lg:grid-cols-2">
+      <Panel className="overflow-hidden">
+        <PanelHeader
+          title="Hàng đợi bếp"
+          description="Ưu tiên các đơn mới nhất, kiểm tra ghi chú trước khi chuyển trạng thái."
+          aside={<CountPill>{orders.length} đơn</CountPill>}
+        />
+
+        <section className="grid items-start gap-4 p-4 xl:grid-cols-2">
           {orders.map((order) => {
             const primaryAction = primaryActionByStatus[order.status];
             const canCancel = visibleStatuses.includes(
@@ -356,7 +345,7 @@ export function StaffOrderBoard() {
 
             return (
               <article
-                className="flex h-full min-h-[560px] flex-col overflow-hidden rounded-lg border border-[#ded8cc] bg-white shadow-sm"
+                className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#eadfce] bg-white shadow-[0_14px_34px_rgba(31,36,40,0.06)]"
                 key={order.id}
               >
                 <div
@@ -369,44 +358,44 @@ export function StaffOrderBoard() {
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-black uppercase tracking-wide text-[#625b50]">
+                      <p className="text-xs font-black uppercase tracking-[0.1em] text-[#6d645a]">
                         Đơn #{order.id}
                       </p>
-                      <h2 className="mt-1 text-2xl font-black text-[#1f2933]">
+                      <h2 className="mt-1 text-2xl font-black text-[#172027]">
                         {order.table.name}
                       </h2>
-                      <p className="mt-1 text-sm font-medium text-[#625b50]">
+                      <p className="mt-1 text-sm font-semibold text-[#6d645a]">
                         {formatDateTime(order.createdAt)}
                       </p>
                     </div>
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-black ${statusClassName[order.status]}`}
+                      className={`pos-badge ${statusClassName[order.status]}`}
                     >
                       {statusLabel[order.status]}
                     </span>
                   </div>
 
-                  <div className="mt-5 overflow-hidden rounded-lg border border-[#eee7dd]">
+                  <div className="mt-5 overflow-hidden rounded-2xl border border-[#eadfce] bg-[#fffdf9]">
                     {order.items.map((item) => (
                       <div
-                        className="grid grid-cols-[minmax(0,1fr)_92px] gap-3 border-b border-[#eee7dd] px-4 py-4 last:border-b-0"
+                        className="grid grid-cols-[minmax(0,1fr)_92px] gap-3 border-b border-[#eadfce] px-4 py-4 last:border-b-0"
                         key={item.id}
                       >
                         <div className="min-w-0">
-                          <p className="text-base font-black text-[#1f2933]">
+                          <p className="text-base font-black text-[#172027]">
                             {item.productName}
                           </p>
                           {item.note ? (
-                            <p className="mt-1 text-xs font-medium text-[#625b50]">
+                            <p className="mt-1 text-xs font-bold text-[#8a5a11]">
                               Ghi chú món: {item.note}
                             </p>
                           ) : null}
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-black text-[#1f2933]">
+                          <p className="text-lg font-black text-[#172027]">
                             x{item.quantity}
                           </p>
-                          <p className="mt-1 text-xs font-medium text-[#625b50]">
+                          <p className="mt-1 text-xs font-semibold text-[#6d645a]">
                             {formatMoney(item.price)}
                           </p>
                         </div>
@@ -414,19 +403,19 @@ export function StaffOrderBoard() {
                     ))}
                   </div>
 
-                  <div className="mt-4 rounded-lg bg-[#f7f7f2] p-4">
-                    <p className="text-xs font-black uppercase tracking-wide text-[#625b50]">
+                  <div className="mt-4 rounded-2xl bg-[#f8f3ea] p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.1em] text-[#6d645a]">
                       Ghi chú đơn
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-[#3b352d]">
+                    <p className="mt-2 text-sm font-semibold leading-6 text-[#3b352d]">
                       {order.note || "Không có ghi chú."}
                     </p>
                   </div>
 
                   <div className="mt-auto pt-5">
-                    <div className="rounded-lg border border-[#eee7dd] bg-[#fbfaf7] p-4">
+                    <div className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4">
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-sm font-bold text-[#625b50]">
+                        <span className="text-sm font-bold text-[#6d645a]">
                           Tổng tiền
                         </span>
                         <span className="text-xl font-black text-[#2f5d50]">
@@ -437,7 +426,7 @@ export function StaffOrderBoard() {
                       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
                         {primaryAction ? (
                           <button
-                            className="min-h-12 rounded-md bg-[#2f5d50] px-5 text-sm font-black text-white transition hover:bg-[#24483e] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={
                               processingKey ===
                               `${order.id}-${primaryAction.nextStatus}`
@@ -456,7 +445,7 @@ export function StaffOrderBoard() {
 
                         {canCancel ? (
                           <button
-                            className="min-h-12 rounded-md border border-red-200 bg-white px-5 text-sm font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="pos-button-danger disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={processingKey === `${order.id}-CANCELLED`}
                             onClick={() => updateOrderStatus(order, "CANCELLED")}
                             type="button"
@@ -474,7 +463,7 @@ export function StaffOrderBoard() {
             );
           })}
         </section>
-      </section>
-    </main>
+      </Panel>
+    </PageShell>
   );
 }

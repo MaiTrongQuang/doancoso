@@ -9,7 +9,7 @@ export default async function StaffLayout({
   const session = await getCurrentSession();
 
   return (
-    <div className="min-h-screen bg-[#f7f7f2]">
+    <div className="min-h-screen bg-transparent">
       <RoleHeader
         badge="Staff"
         title="Khu vực nhân viên"

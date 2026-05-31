@@ -2,6 +2,14 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import QRCode from "qrcode";
+import {
+  Alert,
+  CountPill,
+  PageHero,
+  PageShell,
+  Panel,
+  PanelHeader,
+} from "@/components/ui";
 
 type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
 
@@ -370,35 +378,20 @@ export function TableManager() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f2] px-4 py-8 text-[#24231f] sm:px-6 lg:px-8">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <div className="rounded-lg border border-[#ded8cc] bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2f5d50]">
-            Admin
-          </p>
-          <h1 className="mt-3 text-2xl font-bold text-[#1f2933] sm:text-3xl">
-            Quản lý bàn
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-[#625b50]">
-            Quản lý trạng thái bàn, link gọi món và mã QR Order theo từng bàn.
-          </p>
-        </div>
+    <PageShell>
+      <PageHero
+        eyebrow="Admin"
+        title="Quản lý bàn"
+        description="Quản lý trạng thái bàn, link gọi món và mã QR Order theo từng bàn."
+      />
 
-        {message ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {message}
-          </div>
-        ) : null}
+      {message ? <Alert tone="success">{message}</Alert> : null}
 
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <section className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
           <form
-            className="h-fit rounded-lg border border-[#ded8cc] bg-white p-5 shadow-sm"
+            className="pos-panel h-fit p-5"
             onSubmit={handleSubmit}
           >
             <h2 className="text-lg font-bold text-[#1f2933]">
@@ -408,7 +401,7 @@ export function TableManager() {
             <label className="mt-5 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Tên bàn
               <input
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -425,7 +418,7 @@ export function TableManager() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Trạng thái
               <select
-                className="rounded-md border border-[#d6d1c7] px-3 py-2 outline-none focus:border-[#2f5d50]"
+                className="pos-input"
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -453,7 +446,7 @@ export function TableManager() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <button
-                className="rounded-md bg-[#2f5d50] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24483e] disabled:cursor-not-allowed disabled:opacity-70"
+                className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSubmitting}
                 type="submit"
               >
@@ -466,7 +459,7 @@ export function TableManager() {
 
               {editingTable ? (
                 <button
-                  className="rounded-md border border-[#d6d1c7] px-4 py-2 text-sm font-semibold text-[#3b352d] transition hover:bg-[#f7f7f2]"
+                  className="pos-button-secondary"
                   onClick={resetForm}
                   type="button"
                 >
@@ -476,25 +469,21 @@ export function TableManager() {
             </div>
           </form>
 
-          <div className="min-w-0 rounded-lg border border-[#ded8cc] bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eee7dd] p-4">
-              <h2 className="text-lg font-bold text-[#1f2933]">
-                Danh sách bàn
-              </h2>
-              <span className="rounded-full bg-[#f7f7f2] px-3 py-1 text-sm font-semibold text-[#625b50]">
-                {tables.length} bàn
-              </span>
-            </div>
+          <Panel className="min-w-0 overflow-hidden">
+            <PanelHeader
+              title="Danh sách bàn"
+              aside={<CountPill>{tables.length} bàn</CountPill>}
+            />
 
             <div className="grid gap-4 p-4 2xl:grid-cols-2">
               {isLoading ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-6 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Đang tải danh sách bàn...
                 </div>
               ) : null}
 
               {!isLoading && tables.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-[#d6d1c7] p-6 text-sm text-[#625b50]">
+                <div className="pos-empty text-left">
                   Chưa có bàn nào.
                 </div>
               ) : null}
@@ -504,7 +493,7 @@ export function TableManager() {
 
                 return (
                   <article
-                    className="min-w-0 rounded-lg border border-[#eee7dd] bg-white p-4 shadow-sm"
+                    className="min-w-0 rounded-2xl border border-[#eadfce] bg-white p-4 shadow-sm"
                     key={table.id}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -603,9 +592,8 @@ export function TableManager() {
                 );
               })}
             </div>
-          </div>
-        </section>
+          </Panel>
       </section>
-    </main>
+    </PageShell>
   );
 }
