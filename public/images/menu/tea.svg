@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Tra</title>
+  <desc id="desc">Ly tra trai cay va la tra.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#edf7e8"/>
+      <stop offset="1" stop-color="#b8dca4"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="32" fill="url(#bg)"/>
+  <circle cx="112" cy="354" r="118" fill="#ffffff" opacity=".28"/>
+  <g fill="none" stroke="#396747" stroke-linecap="round" stroke-linejoin="round" stroke-width="15">
+    <path d="M210 118h220l-28 224H238L210 118Z" fill="#fffdf6"/>
+    <path d="M234 182h172"/>
+    <path d="M250 288h140"/>
+    <path d="M316 118l-20-58"/>
+    <path d="M422 136c38-22 78-10 94 24-40 24-78 14-94-24Z" fill="#e2f5cf"/>
+    <path d="M178 246c-38 20-76 8-92-26 38-22 76-10 92 26Z" fill="#e2f5cf"/>
+  </g>
+  <circle cx="282" cy="226" r="24" fill="#f1a15e"/>
+  <circle cx="346" cy="232" r="18" fill="#f8c46a"/>
+  <text x="52" y="82" fill="#28533a" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800">TRA</text>
+</svg>

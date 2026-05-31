@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Nuoc ep</title>
+  <desc id="desc">Ly nuoc cam va trai cay tuoi.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff5dc"/>
+      <stop offset="1" stop-color="#f0b85e"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="32" fill="url(#bg)"/>
+  <circle cx="510" cy="88" r="108" fill="#ffffff" opacity=".34"/>
+  <g fill="none" stroke="#9b5726" stroke-linecap="round" stroke-linejoin="round" stroke-width="15">
+    <path d="M250 128h160l-22 220H272l-22-220Z" fill="#fff8ea"/>
+    <path d="M238 128h184"/>
+    <path d="M274 202h112"/>
+    <path d="M320 128l44-76"/>
+    <path d="M394 76h66"/>
+  </g>
+  <circle cx="164" cy="270" r="68" fill="#f39a2f" stroke="#9b5726" stroke-width="14"/>
+  <path d="M164 202v136M96 270h136M116 222l96 96M212 222l-96 96" stroke="#fff3d4" stroke-linecap="round" stroke-width="8"/>
+  <circle cx="338" cy="272" r="18" fill="#f39a2f"/>
+  <circle cx="286" cy="306" r="14" fill="#ffd36f"/>
+  <text x="52" y="82" fill="#7d421d" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800">NUOC EP</text>
+</svg>

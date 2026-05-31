@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Menu tong hop</title>
+  <desc id="desc">Minh hoa menu gom ca phe, banh va do uong.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8efe4"/>
+      <stop offset="1" stop-color="#e8c9a6"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="32" fill="url(#bg)"/>
+  <circle cx="510" cy="72" r="96" fill="#ffffff" opacity=".36"/>
+  <circle cx="122" cy="350" r="120" fill="#ffffff" opacity=".28"/>
+  <g fill="none" stroke="#7a4a3c" stroke-linecap="round" stroke-linejoin="round" stroke-width="14">
+    <path d="M184 252h132a76 76 0 0 1-76 76h-16a76 76 0 0 1-76-76h36Z" fill="#fff7ed"/>
+    <path d="M328 262h22a30 30 0 0 1 0 60h-30"/>
+    <path d="M184 214c20-20 48-20 68 0s48 20 68 0"/>
+    <path d="M424 166c40 0 72 32 72 72s-32 72-72 72-72-32-72-72 32-72 72-72Z" fill="#fff7ed"/>
+    <path d="M392 236h64M424 204v64"/>
+    <path d="M102 136h134l-20 82H122l-20-82Z" fill="#fff7ed"/>
+    <path d="M124 118h92"/>
+    <path d="M128 176h84"/>
+  </g>
+  <text x="64" y="80" fill="#5f3a32" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="800">MENU</text>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Tra sua</title>
+  <desc id="desc">Ly tra sua tran chau.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff2e6"/>
+      <stop offset="1" stop-color="#e1b58f"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="32" fill="url(#bg)"/>
+  <circle cx="505" cy="78" r="104" fill="#ffffff" opacity=".34"/>
+  <g fill="none" stroke="#74493d" stroke-linecap="round" stroke-linejoin="round" stroke-width="15">
+    <path d="M238 102h164l-24 248H262L238 102Z" fill="#fff8ef"/>
+    <path d="M226 102h188"/>
+    <path d="M274 102l-30-52"/>
+    <path d="M262 182h116"/>
+    <path d="M268 290h104"/>
+  </g>
+  <g fill="#5e3b32">
+    <circle cx="284" cy="316" r="13"/>
+    <circle cx="326" cy="320" r="13"/>
+    <circle cx="364" cy="312" r="13"/>
+    <circle cx="302" cy="278" r="11"/>
+    <circle cx="346" cy="282" r="11"/>
+  </g>
+  <path d="M170 232c-34 16-70 2-84-30 38-18 72-6 84 30Z" fill="#f3d6b8" stroke="#74493d" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
+  <text x="52" y="82" fill="#5b3a32" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800">TRA SUA</text>
+</svg>

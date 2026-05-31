@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String   @map("password_hash")
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Product {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  description String?
+  price       Int
+  imageUrl    String?       @map("image_url")
+  status      ProductStatus @default(AVAILABLE)
+  categoryId  Int           @map("category_id")
+  category    Category      @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model CafeTable {
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
+  status    TableStatus @default(AVAILABLE)
+  qrCodeUrl String?     @map("qr_code_url")
+  orders    Order[]
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  @@map("cafe_tables")
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  tableId     Int         @map("table_id")
+  table       CafeTable   @relation(fields: [tableId], references: [id])
+  status      OrderStatus @default(CONFIRMED)
+  totalAmount Int         @default(0) @map("total_amount")
+  note        String?
+  items       OrderItem[]
+  invoice     Invoice?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int     @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int     @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Int
+  note      String?
+
+  @@map("order_items")
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  orderId        Int           @unique @map("order_id")
+  order          Order         @relation(fields: [orderId], references: [id])
+  totalAmount    Int           @map("total_amount")
+  paymentMethod  PaymentMethod @map("payment_method")
+  paidAt         DateTime      @default(now()) @map("paid_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@map("invoices")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CASHIER
+
+  @@map("user_role")
+}
+
+enum ProductStatus {
+  AVAILABLE
+  UNAVAILABLE
+
+  @@map("product_status")
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+
+  @@map("table_status")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  SERVED
+  PAID
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  QR_PAYMENT
+
+  @@map("payment_method")
+}
