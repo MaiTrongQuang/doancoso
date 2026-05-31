@@ -10,6 +10,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { buildOrderLink, resolveAppBaseUrl } from "./table-links";
 
 type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
 
@@ -27,8 +28,6 @@ type TableForm = {
   name: string;
   status: TableStatus;
 };
-
-const appUrlFromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
 
 const emptyForm: TableForm = {
   name: "",
@@ -87,18 +86,6 @@ function getErrorMessage(value: unknown, fallback: string) {
   }
 
   return fallback;
-}
-
-function buildOrderPath(table: Pick<CafeTable, "id" | "qrCodeUrl">) {
-  return table.qrCodeUrl || `/order/table/${table.id}`;
-}
-
-function buildOrderLink(
-  appBaseUrl: string,
-  table: Pick<CafeTable, "id" | "qrCodeUrl">,
-) {
-  const path = buildOrderPath(table);
-  return appBaseUrl ? `${appBaseUrl}${path}` : path;
 }
 
 async function fetchTables() {
@@ -165,7 +152,7 @@ export function TableManager() {
   const [tables, setTables] = useState<CafeTable[]>([]);
   const [form, setForm] = useState<TableForm>(emptyForm);
   const [editingTable, setEditingTable] = useState<CafeTable | null>(null);
-  const [appBaseUrl, setAppBaseUrl] = useState(appUrlFromEnv ?? "");
+  const [appBaseUrl, setAppBaseUrl] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -191,13 +178,16 @@ export function TableManager() {
   }
 
   useEffect(() => {
-    if (!appUrlFromEnv) {
-      const timeoutId = window.setTimeout(() => {
-        setAppBaseUrl(window.location.origin);
-      }, 0);
+    const timeoutId = window.setTimeout(() => {
+      setAppBaseUrl(
+        resolveAppBaseUrl(
+          window.location.origin,
+          process.env.NEXT_PUBLIC_APP_URL,
+        ),
+      );
+    }, 0);
 
-      return () => window.clearTimeout(timeoutId);
-    }
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {
