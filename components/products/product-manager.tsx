@@ -9,6 +9,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatMoney } from "@/lib/format-money";
 import {
   getProductStatusLabel,
@@ -121,6 +122,8 @@ export function ProductManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [pendingDeleteProduct, setPendingDeleteProduct] =
+    useState<Product | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -329,14 +332,6 @@ export function ProductManager() {
   }
 
   async function handleDelete(product: Product) {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa sản phẩm "${product.name}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setMessage("");
     setError("");
     setDeletingProductId(product.id);
@@ -355,9 +350,19 @@ export function ProductManager() {
       if (editingProduct?.id === product.id) {
         resetForm();
       }
-      setProducts((currentProducts) =>
-        currentProducts.filter((currentProduct) => currentProduct.id !== product.id),
-      );
+      if (result.data) {
+        setProducts((currentProducts) =>
+          currentProducts.map((currentProduct) =>
+            currentProduct.id === result.data!.id ? result.data! : currentProduct,
+          ),
+        );
+      } else {
+        setProducts((currentProducts) =>
+          currentProducts.filter(
+            (currentProduct) => currentProduct.id !== product.id,
+          ),
+        );
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -366,6 +371,7 @@ export function ProductManager() {
       );
     } finally {
       setDeletingProductId(null);
+      setPendingDeleteProduct(null);
     }
   }
 
@@ -752,7 +758,7 @@ export function ProductManager() {
                     <button
                       className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={deletingProductId === product.id}
-                      onClick={() => handleDelete(product)}
+                      onClick={() => setPendingDeleteProduct(product)}
                       type="button"
                     >
                       {deletingProductId === product.id
@@ -765,6 +771,45 @@ export function ProductManager() {
             </div>
           </Panel>
       </section>
+
+      <ConfirmDialog
+        confirmLabel={
+          pendingDeleteProduct && pendingDeleteProduct.orderItemCount > 0
+            ? "Ngừng bán"
+            : "Xóa sản phẩm"
+        }
+        description={
+          pendingDeleteProduct && pendingDeleteProduct.orderItemCount > 0
+            ? "Sản phẩm đã từng xuất hiện trong đơn hàng, hệ thống sẽ ẩn khỏi menu thay vì xóa khỏi lịch sử."
+            : "Thao tác này sẽ xóa sản phẩm khỏi menu và không thể hoàn tác."
+        }
+        isConfirming={
+          pendingDeleteProduct
+            ? deletingProductId === pendingDeleteProduct.id
+            : false
+        }
+        onCancel={() => setPendingDeleteProduct(null)}
+        onConfirm={() => {
+          if (pendingDeleteProduct) {
+            handleDelete(pendingDeleteProduct);
+          }
+        }}
+        open={pendingDeleteProduct !== null}
+        title={
+          pendingDeleteProduct && pendingDeleteProduct.orderItemCount > 0
+            ? `Ngừng bán "${pendingDeleteProduct.name}"?`
+            : `Xóa "${pendingDeleteProduct?.name ?? ""}"?`
+        }
+        tone={
+          pendingDeleteProduct && pendingDeleteProduct.orderItemCount > 0
+            ? "warning"
+            : "danger"
+        }
+      >
+        {pendingDeleteProduct && pendingDeleteProduct.orderItemCount > 0
+          ? `${pendingDeleteProduct.orderItemCount} dòng món trong hóa đơn vẫn được giữ nguyên để báo cáo doanh thu không bị sai.`
+          : null}
+      </ConfirmDialog>
     </PageShell>
   );
 }

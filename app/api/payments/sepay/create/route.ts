@@ -104,9 +104,15 @@ async function createPendingPayment({
   tableName: string | null;
 }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    const randomSuffix = Number.parseInt(
+      randomUUID().replace(/-/g, "").slice(0, 8),
+      16,
+    )
+      .toString(36)
+      .padStart(4, "0");
     const transferCode = buildSepayTransferCode(
       orderId,
-      `${Date.now().toString(36)}${randomUUID().slice(0, 8)}`,
+      randomSuffix,
     );
     const transferDescription = buildSepayTransferDescription({
       orderId,

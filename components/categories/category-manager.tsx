@@ -9,6 +9,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type Category = {
   id: number;
@@ -64,6 +65,8 @@ export function CategoryManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<CategoryForm>(emptyForm);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [pendingDeleteCategory, setPendingDeleteCategory] =
+    useState<Category | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -193,14 +196,6 @@ export function CategoryManager() {
   }
 
   async function handleDelete(category: Category) {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa danh mục "${category.name}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setMessage("");
     setError("");
     setDeletingCategoryId(category.id);
@@ -234,6 +229,7 @@ export function CategoryManager() {
       );
     } finally {
       setDeletingCategoryId(null);
+      setPendingDeleteCategory(null);
     }
   }
 
@@ -374,7 +370,7 @@ export function CategoryManager() {
                           cannotDelete ||
                           deletingCategoryId === category.id
                         }
-                        onClick={() => handleDelete(category)}
+                        onClick={() => setPendingDeleteCategory(category)}
                         title={
                           cannotDelete
                             ? "Không thể xóa danh mục đang có sản phẩm."
@@ -393,6 +389,24 @@ export function CategoryManager() {
             </div>
           </Panel>
       </section>
+
+      <ConfirmDialog
+        confirmLabel="Xóa danh mục"
+        description="Danh mục sẽ bị xóa khỏi hệ thống. Chỉ thực hiện khi chắc chắn danh mục không còn dùng cho menu."
+        isConfirming={
+          pendingDeleteCategory
+            ? deletingCategoryId === pendingDeleteCategory.id
+            : false
+        }
+        onCancel={() => setPendingDeleteCategory(null)}
+        onConfirm={() => {
+          if (pendingDeleteCategory) {
+            handleDelete(pendingDeleteCategory);
+          }
+        }}
+        open={pendingDeleteCategory !== null}
+        title={`Xóa "${pendingDeleteCategory?.name ?? ""}"?`}
+      />
     </PageShell>
   );
 }

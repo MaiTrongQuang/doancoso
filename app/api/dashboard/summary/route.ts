@@ -4,7 +4,7 @@ import { hasRole } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const isAdmin = await hasRole(["ADMIN"]);
 
@@ -15,7 +15,9 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(await getDashboardSummary());
+    const days = new URL(request.url).searchParams.get("days");
+
+    return NextResponse.json(await getDashboardSummary({ days: Number(days) }));
   } catch (error) {
     console.error(error);
 

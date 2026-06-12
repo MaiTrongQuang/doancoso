@@ -9,6 +9,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type UserRole = "ADMIN" | "STAFF" | "CASHIER";
 
@@ -125,6 +126,7 @@ export function UserManager() {
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<User | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -268,14 +270,6 @@ export function UserManager() {
   }
 
   async function handleDelete(user: User) {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa tài khoản "${user.email}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setMessage("");
     setError("");
     setDeletingUserId(user.id);
@@ -305,6 +299,7 @@ export function UserManager() {
       );
     } finally {
       setDeletingUserId(null);
+      setPendingDeleteUser(null);
     }
   }
 
@@ -514,7 +509,7 @@ export function UserManager() {
                           <button
                             className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={deletingUserId === user.id}
-                            onClick={() => handleDelete(user)}
+                            onClick={() => setPendingDeleteUser(user)}
                             type="button"
                           >
                             {deletingUserId === user.id ? "Đang xóa..." : "Xóa"}
@@ -528,6 +523,22 @@ export function UserManager() {
             </div>
           </Panel>
       </section>
+
+      <ConfirmDialog
+        confirmLabel="Xóa tài khoản"
+        description="Tài khoản này sẽ mất quyền đăng nhập vào hệ thống POS. Không thể xóa tài khoản đang đăng nhập hoặc admin cuối cùng."
+        isConfirming={
+          pendingDeleteUser ? deletingUserId === pendingDeleteUser.id : false
+        }
+        onCancel={() => setPendingDeleteUser(null)}
+        onConfirm={() => {
+          if (pendingDeleteUser) {
+            handleDelete(pendingDeleteUser);
+          }
+        }}
+        open={pendingDeleteUser !== null}
+        title={`Xóa "${pendingDeleteUser?.email ?? ""}"?`}
+      />
     </PageShell>
   );
 }

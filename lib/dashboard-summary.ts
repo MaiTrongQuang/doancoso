@@ -79,9 +79,27 @@ type RawDashboardSummary = {
     invoiceCount: number;
     revenue: number;
   }>;
+  topTables: Array<{
+    tableId: number;
+    tableName: string;
+    invoiceCount: number;
+    revenue: number;
+  }>;
   orderStatusStats: Array<{
     status: OrderStatus | string;
     count: number;
+  }>;
+  recentInvoices: Array<{
+    id: number;
+    orderId: number;
+    sessionId: number | null;
+    totalAmount: number;
+    paymentMethod: PaymentMethod | string;
+    paidAt: string;
+    table: {
+      id: number;
+      name: string;
+    };
   }>;
   recentOrders: Array<{
     id: number;
@@ -111,9 +129,16 @@ function createEmptyRawDashboardSummary(): RawDashboardSummary {
     dailyRevenue: [],
     topProducts: [],
     paymentStats: [],
+    topTables: [],
     orderStatusStats: [],
+    recentInvoices: [],
     recentOrders: [],
   };
+}
+
+export function normalizeDashboardDays(value: unknown) {
+  const days = typeof value === "number" ? value : Number(value);
+  return days === 30 ? 30 : 7;
 }
 
 export function buildDashboardSummaryResult({
@@ -135,6 +160,10 @@ export function buildDashboardSummaryResult({
       },
     ]),
   );
+  const totalPaymentRevenue = rawSummary.paymentStats.reduce(
+    (total, item) => total + toNumber(item.revenue),
+    0,
+  );
   const orderCountByStatus = new Map(
     rawSummary.orderStatusStats.map((item) => [
       item.status,
@@ -146,6 +175,13 @@ export function buildDashboardSummaryResult({
     todayRevenue: toNumber(rawSummary.todayRevenue),
     todayOrders: toNumber(rawSummary.todayOrders),
     todayPaidOrders: toNumber(rawSummary.todayPaidOrders),
+    averageInvoiceValue:
+      toNumber(rawSummary.todayPaidOrders) > 0
+        ? Math.round(
+            toNumber(rawSummary.todayRevenue) /
+              toNumber(rawSummary.todayPaidOrders),
+          )
+        : 0,
     availableProducts: toNumber(rawSummary.availableProducts),
     totalTables: toNumber(rawSummary.totalTables),
     dailyRevenue: dayBuckets.map((bucket) => {
@@ -173,8 +209,18 @@ export function buildDashboardSummaryResult({
         label: paymentMethodLabels[paymentMethod],
         invoiceCount: stats?.invoiceCount ?? 0,
         revenue: stats?.revenue ?? 0,
+        share:
+          totalPaymentRevenue > 0 && stats
+            ? Math.round((stats.revenue / totalPaymentRevenue) * 100)
+            : 0,
       };
     }),
+    topTables: rawSummary.topTables.map((table) => ({
+      tableId: toNumber(table.tableId),
+      tableName: table.tableName,
+      invoiceCount: toNumber(table.invoiceCount),
+      revenue: toNumber(table.revenue),
+    })),
     orderStatusStats: Object.values(OrderStatus).map((status) => {
       return {
         status,
@@ -182,6 +228,18 @@ export function buildDashboardSummaryResult({
         count: orderCountByStatus.get(status) ?? 0,
       };
     }),
+    recentInvoices: rawSummary.recentInvoices.map((invoice) => ({
+      id: toNumber(invoice.id),
+      orderId: toNumber(invoice.orderId),
+      sessionId:
+        invoice.sessionId === null || invoice.sessionId === undefined
+          ? null
+          : toNumber(invoice.sessionId),
+      totalAmount: toNumber(invoice.totalAmount),
+      paymentMethod: invoice.paymentMethod,
+      paidAt: invoice.paidAt,
+      table: invoice.table,
+    })),
     recentOrders: rawSummary.recentOrders.map((order) => ({
       id: toNumber(order.id),
       status: order.status,
@@ -194,10 +252,11 @@ export function buildDashboardSummaryResult({
   };
 }
 
-export async function getDashboardSummary() {
+export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) {
+  const chartDays = normalizeDashboardDays(days);
   const { start } = getTodayRange();
-  const chartStart = addDays(start, -6);
-  const dayBuckets = Array.from({ length: 7 }, (_, index) => {
+  const chartStart = addDays(start, -(chartDays - 1));
+  const dayBuckets = Array.from({ length: chartDays }, (_, index) => {
     const date = addDays(chartStart, index);
 
     return {
@@ -328,6 +387,31 @@ export async function getDashboardSummary() {
             GROUP BY payment_method
           ) payment_rows
         ), '[]'::jsonb),
+      'topTables',
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'tableId', ranked.table_id,
+              'tableName', ranked.table_name,
+              'invoiceCount', ranked.invoice_count,
+              'revenue', ranked.revenue
+            )
+            ORDER BY ranked.invoice_count DESC, ranked.revenue DESC, ranked.table_name ASC
+          )
+          FROM (
+            SELECT
+              t.id AS table_id,
+              t.name AS table_name,
+              COUNT(i.id)::int AS invoice_count,
+              COALESCE(SUM(i.total_amount), 0)::int AS revenue
+            FROM invoices i
+            INNER JOIN orders o ON o.id = i.order_id
+            INNER JOIN cafe_tables t ON t.id = o.table_id
+            GROUP BY t.id, t.name
+            ORDER BY invoice_count DESC, revenue DESC, t.name ASC
+            LIMIT 5
+          ) ranked
+        ), '[]'::jsonb),
       'orderStatusStats',
         COALESCE((
           SELECT jsonb_agg(
@@ -342,6 +426,40 @@ export async function getDashboardSummary() {
             FROM orders
             GROUP BY status
           ) status_rows
+        ), '[]'::jsonb),
+      'recentInvoices',
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', recent.id,
+              'orderId', recent.order_id,
+              'sessionId', recent.session_id,
+              'totalAmount', recent.total_amount,
+              'paymentMethod', recent.payment_method,
+              'paidAt', recent.paid_at,
+              'table', jsonb_build_object(
+                'id', recent.table_id,
+                'name', recent.table_name
+              )
+            )
+            ORDER BY recent.paid_at DESC
+          )
+          FROM (
+            SELECT
+              i.id,
+              i.order_id,
+              i.session_id,
+              i.total_amount,
+              i.payment_method::text AS payment_method,
+              to_char(i.paid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS paid_at,
+              t.id AS table_id,
+              t.name AS table_name
+            FROM invoices i
+            INNER JOIN orders o ON o.id = i.order_id
+            INNER JOIN cafe_tables t ON t.id = o.table_id
+            ORDER BY i.paid_at DESC
+            LIMIT 6
+          ) recent
         ), '[]'::jsonb),
       'recentOrders',
         COALESCE((

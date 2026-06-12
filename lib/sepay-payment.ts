@@ -1,5 +1,6 @@
 const TRANSFER_CODE_PREFIX = "CAFE";
-const TRANSFER_CODE_PATTERN = /\bCAFE[0-9A-Z]{6,}\b/;
+const TRANSFER_CODE_SUFFIX_LENGTH = 4;
+const TRANSFER_CODE_PATTERN = /\bCAFE[0-9A-Z]{5,}\b/;
 
 export type SepayPaymentLifecycleStatus =
   | "PENDING"
@@ -29,7 +30,7 @@ export function canConfirmSepayPayment(status: SepayPaymentLifecycleStatus) {
 }
 
 export function buildSepayTransferCode(orderId: number, suffix: string) {
-  return `${TRANSFER_CODE_PREFIX}${orderId}${normalizeTransferCodeSegment(suffix)}`;
+  return `${TRANSFER_CODE_PREFIX}${orderId}${normalizeTransferCodeSegment(suffix).slice(0, TRANSFER_CODE_SUFFIX_LENGTH)}`;
 }
 
 export function buildSepayTransferDescription({
@@ -43,9 +44,8 @@ export function buildSepayTransferDescription({
 }) {
   const normalizedTableName =
     tableName && normalizeDescriptionSegment(tableName);
-  const prefix = normalizedTableName
-    ? `THANH TOAN ${normalizedTableName}`
-    : `THANH TOAN DON HANG ${orderId}`;
+  const compactTableName = normalizedTableName?.replace(/\s+/g, "");
+  const prefix = compactTableName ? `TT ${compactTableName}` : `TT DH${orderId}`;
 
   return `${prefix} ${transferCode}`;
 }

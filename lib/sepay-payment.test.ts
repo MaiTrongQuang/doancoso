@@ -14,17 +14,17 @@ import {
 const transferDescription = buildSepayTransferDescription({
   orderId: 42,
   tableName: "Bàn 2",
-  transferCode: "CAFE42ABC123",
+  transferCode: "CAFE42ABC1",
 });
 
-assert.equal(transferDescription, "THANH TOAN BAN 2 CAFE42ABC123");
+assert.equal(transferDescription, "TT BAN2 CAFE42ABC1");
 
 const qrUrl = buildSepayQrUrl({
   accountNumber: "123456789",
   amount: 125000,
   bankCode: "MBBank",
   transferDescription,
-  transferCode: "CAFE42ABC123",
+  transferCode: "CAFE42ABC1",
 });
 const parsedQrUrl = new URL(qrUrl);
 
@@ -33,14 +33,14 @@ assert.equal(parsedQrUrl.searchParams.get("acc"), "123456789");
 assert.equal(parsedQrUrl.searchParams.get("bank"), "MBBank");
 assert.equal(parsedQrUrl.searchParams.get("amount"), "125000");
 assert.equal(parsedQrUrl.searchParams.get("des"), transferDescription);
-assert.equal(getSepayQrDescription(qrUrl, "CAFE42ABC123"), transferDescription);
+assert.equal(getSepayQrDescription(qrUrl, "CAFE42ABC1"), transferDescription);
 assert.equal(
-  getSepayQrDescription("not-a-url", "CAFE42ABC123"),
-  "CAFE42ABC123",
+  getSepayQrDescription("not-a-url", "CAFE42ABC1"),
+  "CAFE42ABC1",
 );
 
-assert.equal(buildSepayTransferCode(42, "abc123xy"), "CAFE42ABC123XY");
-assert.equal(buildSepayTransferCode(42, "abc-123-xy"), "CAFE42ABC123XY");
+assert.equal(buildSepayTransferCode(42, "abc123xy"), "CAFE42ABC1");
+assert.equal(buildSepayTransferCode(42, "abc-123-xy"), "CAFE42ABC1");
 
 assert.equal(
   extractSepayTransferCode({
@@ -52,9 +52,16 @@ assert.equal(
 assert.equal(
   extractSepayTransferCode({
     code: "",
-    content: "THANH TOAN BAN 2 CAFE99XYZ789",
+    content: "TT BAN2 CAFE99XYZ7",
   }),
-  "CAFE99XYZ789",
+  "CAFE99XYZ7",
+);
+assert.equal(
+  extractSepayTransferCode({
+    code: "",
+    content: "TT BAN1 CAFE1A7K2",
+  }),
+  "CAFE1A7K2",
 );
 assert.equal(
   extractSepayTransferCode({

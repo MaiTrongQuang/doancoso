@@ -34,6 +34,10 @@ export function getAllowedNextOrderStatuses(status: OrderStatus) {
   return nextOrderStatusesByCurrent[status];
 }
 
+export function isLockedOrderStatus(status: OrderStatus) {
+  return status === "PAID" || status === "CANCELLED";
+}
+
 export function canTransitionOrderStatus(
   currentStatus: OrderStatus,
   nextStatus: OrderStatus,

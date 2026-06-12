@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { ProductStatus } from "@prisma/client";
 import { menuCatalogCacheTag } from "@/lib/customer-menu-catalog";
+import { getProductRemovalAction } from "@/lib/destructive-action-policy";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -245,6 +246,12 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             orderItems: true,
@@ -260,14 +267,33 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       );
     }
 
-    if (product._count.orderItems > 0) {
-      return NextResponse.json(
-        {
-          message:
-            "Không thể xóa sản phẩm vì sản phẩm đã tồn tại trong đơn hàng.",
+    if (getProductRemovalAction(product._count.orderItems) === "DISABLE") {
+      const disabledProduct = await prisma.product.update({
+        where: { id },
+        data: {
+          status: ProductStatus.UNAVAILABLE,
         },
-        { status: 409 },
-      );
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          _count: {
+            select: {
+              orderItems: true,
+            },
+          },
+        },
+      });
+      revalidateTag(menuCatalogCacheTag, "max");
+
+      return NextResponse.json({
+        message:
+          "Sản phẩm đã từng xuất hiện trong đơn hàng nên đã được chuyển sang ngừng bán thay vì xóa.",
+        data: serializeProduct(disabledProduct),
+      });
     }
 
     await prisma.product.delete({

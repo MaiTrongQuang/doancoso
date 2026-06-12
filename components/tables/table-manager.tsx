@@ -10,6 +10,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { buildOrderLink, resolveAppBaseUrl } from "./table-links";
 
 type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
@@ -18,6 +19,7 @@ type CafeTable = {
   id: number;
   name: string;
   status: TableStatus;
+  activeSessionId: number | null;
   qrCodeUrl: string | null;
   orderCount: number;
   createdAt: string;
@@ -157,6 +159,8 @@ export function TableManager() {
   const [tables, setTables] = useState<CafeTable[]>([]);
   const [form, setForm] = useState<TableForm>(emptyForm);
   const [editingTable, setEditingTable] = useState<CafeTable | null>(null);
+  const [pendingDeleteTable, setPendingDeleteTable] =
+    useState<CafeTable | null>(null);
   const [appBaseUrl, setAppBaseUrl] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -358,14 +362,6 @@ export function TableManager() {
   }
 
   async function handleDelete(table: CafeTable) {
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa bàn "${table.name}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setMessage("");
     setError("");
     setDeletingTableId(table.id);
@@ -393,6 +389,7 @@ export function TableManager() {
       );
     } finally {
       setDeletingTableId(null);
+      setPendingDeleteTable(null);
     }
   }
 
@@ -509,6 +506,10 @@ export function TableManager() {
 
               {tables.map((table) => {
                 const orderLink = buildOrderLink(appBaseUrl, table);
+                const cannotDelete =
+                  table.orderCount > 0 ||
+                  table.activeSessionId !== null ||
+                  table.status === "OCCUPIED";
 
                 return (
                   <article
@@ -599,8 +600,13 @@ export function TableManager() {
                         </button>
                         <button
                           className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={deletingTableId === table.id}
-                          onClick={() => handleDelete(table)}
+                          disabled={cannotDelete || deletingTableId === table.id}
+                          onClick={() => setPendingDeleteTable(table)}
+                          title={
+                            cannotDelete
+                              ? "Không thể xóa bàn đang có đơn hoặc phiên phục vụ."
+                              : undefined
+                          }
                           type="button"
                         >
                           {deletingTableId === table.id ? "Đang xóa..." : "Xóa"}
@@ -613,6 +619,22 @@ export function TableManager() {
             </div>
           </Panel>
       </section>
+
+      <ConfirmDialog
+        confirmLabel="Xóa bàn"
+        description="Bàn sẽ bị xóa khỏi danh sách quản lý. Link QR của bàn này cũng không còn sử dụng được."
+        isConfirming={
+          pendingDeleteTable ? deletingTableId === pendingDeleteTable.id : false
+        }
+        onCancel={() => setPendingDeleteTable(null)}
+        onConfirm={() => {
+          if (pendingDeleteTable) {
+            handleDelete(pendingDeleteTable);
+          }
+        }}
+        open={pendingDeleteTable !== null}
+        title={`Xóa "${pendingDeleteTable?.name ?? ""}"?`}
+      />
     </PageShell>
   );
 }

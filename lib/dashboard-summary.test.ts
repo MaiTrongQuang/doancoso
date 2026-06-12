@@ -33,10 +33,29 @@ const result = buildDashboardSummaryResult({
         revenue: 70_000,
       },
     ],
+    topTables: [
+      {
+        tableId: 1,
+        tableName: "Ban 1",
+        invoiceCount: 3,
+        revenue: 120_000,
+      },
+    ],
     orderStatusStats: [
       {
         status: OrderStatus.PENDING,
         count: 1,
+      },
+    ],
+    recentInvoices: [
+      {
+        id: 9,
+        orderId: 8,
+        sessionId: null,
+        totalAmount: 30_000,
+        paymentMethod: PaymentMethod.CASH,
+        paidAt: "2026-06-01T10:05:00.000Z",
+        table: { id: 1, name: "Ban 1" },
       },
     ],
     recentOrders: [
@@ -70,6 +89,7 @@ const result = buildDashboardSummaryResult({
 });
 
 assert.equal(result.todayRevenue, 70_000);
+assert.equal(result.averageInvoiceValue, 35_000);
 assert.equal(result.availableProducts, 12);
 assert.deepEqual(result.dailyRevenue, [
   {
@@ -89,10 +109,15 @@ assert.deepEqual(result.dailyRevenue, [
 ]);
 assert.equal(result.paymentStats.length, Object.values(PaymentMethod).length);
 assert.equal(result.paymentStats[0].label, "Tiền mặt");
+assert.equal(result.paymentStats[0].share, 100);
 assert.equal(
   result.orderStatusStats.find((item) => item.status === OrderStatus.PENDING)
     ?.count,
   1,
 );
 assert.equal(result.topProducts[0].productName, "Coffee");
+assert.equal(result.topTables[0].tableName, "Ban 1");
+assert.equal(result.topTables[0].invoiceCount, 3);
+assert.equal(result.recentInvoices[0].id, 9);
+assert.equal(result.recentInvoices[0].paymentMethod, PaymentMethod.CASH);
 assert.equal(result.recentOrders[0].id, 8);

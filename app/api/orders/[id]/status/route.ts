@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DiningSessionStatus, OrderStatus, TableStatus } from "@prisma/client";
 import {
   canTransitionOrderStatus,
+  isLockedOrderStatus,
   isOrderStatus,
 } from "@/lib/order-status-flow";
 import { prisma } from "@/lib/prisma";
@@ -84,6 +85,18 @@ export async function PUT(request: Request, { params }: RouteContext) {
       return NextResponse.json(
         { message: "Đơn hàng không tồn tại." },
         { status: 404 },
+      );
+    }
+
+    if (isLockedOrderStatus(order.status)) {
+      return NextResponse.json(
+        {
+          message:
+            order.status === OrderStatus.PAID
+              ? "Đơn đã thanh toán nên không thể cập nhật hoặc hủy."
+              : "Đơn đã hủy nên không thể cập nhật lại.",
+        },
+        { status: 409 },
       );
     }
 

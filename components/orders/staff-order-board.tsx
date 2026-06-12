@@ -9,6 +9,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatMoney } from "@/lib/format-money";
 import {
   formatKitchenWaitTime,
@@ -207,6 +208,8 @@ export function StaffOrderBoard() {
   const [isLoading, setIsLoading] = useState(true);
   const [processingKey, setProcessingKey] = useState("");
   const [isKitchenMode, setIsKitchenMode] = useState(false);
+  const [pendingCancelOrder, setPendingCancelOrder] =
+    useState<StaffOrder | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   const orderCountByStatus = useMemo(() => {
@@ -340,15 +343,6 @@ export function StaffOrderBoard() {
   }, []);
 
   async function updateOrderStatus(order: StaffOrder, nextStatus: OrderStatus) {
-    const isCancelAction = nextStatus === "CANCELLED";
-
-    if (
-      isCancelAction &&
-      !window.confirm(`Bạn có chắc muốn hủy đơn #${order.id}?`)
-    ) {
-      return;
-    }
-
     setMessage("");
     setError("");
     setProcessingKey(`${order.id}-${nextStatus}`);
@@ -387,6 +381,9 @@ export function StaffOrderBoard() {
       );
     } finally {
       setProcessingKey("");
+      if (nextStatus === "CANCELLED") {
+        setPendingCancelOrder(null);
+      }
     }
   }
 
@@ -618,7 +615,7 @@ export function StaffOrderBoard() {
                           <button
                             className="pos-button-danger disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={processingKey === `${order.id}-CANCELLED`}
-                            onClick={() => updateOrderStatus(order, "CANCELLED")}
+                            onClick={() => setPendingCancelOrder(order)}
                             type="button"
                           >
                             {processingKey === `${order.id}-CANCELLED`
@@ -635,6 +632,28 @@ export function StaffOrderBoard() {
           })}
         </section>
       </Panel>
+
+      <ConfirmDialog
+        confirmLabel="Hủy đơn"
+        description="Đơn sẽ rời khỏi hàng đợi bếp. Nếu đây là đơn cuối cùng của bàn, bàn có thể được trả về trạng thái trống."
+        isConfirming={
+          pendingCancelOrder
+            ? processingKey === `${pendingCancelOrder.id}-CANCELLED`
+            : false
+        }
+        onCancel={() => setPendingCancelOrder(null)}
+        onConfirm={() => {
+          if (pendingCancelOrder) {
+            updateOrderStatus(pendingCancelOrder, "CANCELLED");
+          }
+        }}
+        open={pendingCancelOrder !== null}
+        title={`Hủy đơn #${pendingCancelOrder?.id ?? ""}?`}
+      >
+        {pendingCancelOrder
+          ? `${pendingCancelOrder.table.name} · ${formatMoney(pendingCancelOrder.totalAmount)}`
+          : null}
+      </ConfirmDialog>
     </PageShell>
   );
 }
