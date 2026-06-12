@@ -3,6 +3,7 @@ import {
   DiningSessionStatus,
   OrderStatus,
   PaymentMethod,
+  PaymentStatus,
   TableStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -295,6 +296,20 @@ export async function POST(request: Request) {
       .reduce((total, billOrder) => total + billOrder.totalAmount, 0);
 
     const invoice = await prisma.$transaction(async (tx) => {
+      if (paymentMethod === PaymentMethod.CASH) {
+        await tx.payment.updateMany({
+          where: {
+            orderId: {
+              in: payableOrderIds,
+            },
+            status: PaymentStatus.PENDING,
+          },
+          data: {
+            status: PaymentStatus.CANCELLED,
+          },
+        });
+      }
+
       await tx.order.updateMany({
         where: {
           id: {

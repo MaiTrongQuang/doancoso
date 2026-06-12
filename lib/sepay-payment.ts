@@ -1,8 +1,19 @@
 const TRANSFER_CODE_PREFIX = "CAFE";
 const TRANSFER_CODE_PATTERN = /\bCAFE[0-9A-Z]{6,}\b/;
 
+export type SepayPaymentLifecycleStatus =
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "CANCELLED"
+  | "EXPIRED";
+
 function normalizeTransferCodeSegment(value: string) {
   return value.replace(/[^0-9a-z]/gi, "").toUpperCase();
+}
+
+export function canConfirmSepayPayment(status: SepayPaymentLifecycleStatus) {
+  return status === "PENDING";
 }
 
 export function buildSepayTransferCode(orderId: number, suffix: string) {

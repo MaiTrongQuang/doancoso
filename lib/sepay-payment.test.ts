@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import {
   buildSepayQrUrl,
   buildSepayTransferCode,
+  canConfirmSepayPayment,
   extractSepayTransferCode,
   isIncomingSepayTransfer,
   normalizeSepayAmount,
@@ -51,6 +52,12 @@ assert.equal(isIncomingSepayTransfer("in"), true);
 assert.equal(isIncomingSepayTransfer("IN"), true);
 assert.equal(isIncomingSepayTransfer("out"), false);
 assert.equal(isIncomingSepayTransfer(null), false);
+
+assert.equal(canConfirmSepayPayment("PENDING"), true);
+assert.equal(canConfirmSepayPayment("PAID"), false);
+assert.equal(canConfirmSepayPayment("CANCELLED"), false);
+assert.equal(canConfirmSepayPayment("EXPIRED"), false);
+assert.equal(canConfirmSepayPayment("FAILED"), false);
 
 assert.equal(normalizeSepayAmount(125000), 125000);
 assert.equal(normalizeSepayAmount("125,000.90"), 125000);

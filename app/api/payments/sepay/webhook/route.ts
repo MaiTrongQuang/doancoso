@@ -8,6 +8,7 @@ import {
   TableStatus,
 } from "@prisma/client";
 import {
+  canConfirmSepayPayment,
   extractSepayTransferCode,
   isIncomingSepayTransfer,
   normalizeSepayAmount,
@@ -173,6 +174,23 @@ export async function POST(request: Request) {
     });
   }
 
+  if (!canConfirmSepayPayment(payment.status)) {
+    await rememberWebhookDebugData({
+      paymentId: payment.id,
+      rawData,
+      referenceCode,
+      sepayTransactionId,
+    });
+
+    return NextResponse.json({
+      message: "Thanh toán SePay không còn ở trạng thái chờ, đã bỏ qua.",
+      data: {
+        ignored: true,
+        paymentStatus: payment.status,
+      },
+    });
+  }
+
   if (transferAmount < payment.amount) {
     await rememberWebhookDebugData({
       paymentId: payment.id,
@@ -216,6 +234,27 @@ export async function POST(request: Request) {
 
       if (!currentPayment) {
         throw new Error("Payment disappeared while processing webhook.");
+      }
+
+      if (!canConfirmSepayPayment(currentPayment.status)) {
+        await tx.payment.update({
+          where: {
+            id: currentPayment.id,
+          },
+          data: {
+            rawData,
+            referenceCode: referenceCode ?? currentPayment.referenceCode,
+            sepayTransactionId:
+              sepayTransactionId ?? currentPayment.sepayTransactionId,
+          },
+        });
+
+        return {
+          ignored: true,
+          invoiceId: null,
+          paymentId: currentPayment.id,
+          paymentStatus: currentPayment.status,
+        };
       }
 
       await tx.payment.update({
@@ -326,17 +365,17 @@ export async function POST(request: Request) {
           });
 
       return {
+        ignored: false,
         invoiceId: invoice.id,
         paymentId: currentPayment.id,
+        paymentStatus: PaymentStatus.PAID,
       };
     });
 
     return NextResponse.json({
       message: "Đã xác nhận thanh toán SePay.",
       data: {
-        ignored: false,
         ...result,
-        paymentStatus: PaymentStatus.PAID,
       },
     });
   } catch (error) {
