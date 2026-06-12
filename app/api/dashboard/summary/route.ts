@@ -15,9 +15,13 @@ export async function GET(request: Request) {
       );
     }
 
-    const days = new URL(request.url).searchParams.get("days");
+    const searchParams = new URL(request.url).searchParams;
+    const days = searchParams.get("days");
+    const date = searchParams.get("date");
 
-    return NextResponse.json(await getDashboardSummary({ days: Number(days) }));
+    return NextResponse.json(
+      await getDashboardSummary({ date, days: Number(days) }),
+    );
   } catch (error) {
     console.error(error);
 

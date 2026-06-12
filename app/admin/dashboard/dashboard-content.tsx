@@ -62,6 +62,9 @@ type RecentInvoice = {
 };
 
 type DashboardSummary = {
+  isSelectedToday: boolean;
+  selectedDate: string;
+  selectedDateLabel: string;
   todayRevenue: number;
   todayOrders: number;
   todayPaidOrders: number;
@@ -131,6 +134,7 @@ function getErrorMessage(value: unknown, fallback: string) {
 export function DashboardContent() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
+  const [selectedDate, setSelectedDate] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -142,7 +146,15 @@ export function DashboardContent() {
       setError("");
 
       try {
-        const response = await fetch(`/api/dashboard/summary?days=${periodDays}`, {
+        const params = new URLSearchParams({
+          days: String(periodDays),
+        });
+
+        if (selectedDate) {
+          params.set("date", selectedDate);
+        }
+
+        const response = await fetch(`/api/dashboard/summary?${params}`, {
           cache: "no-store",
         });
         const result = await response.json();
@@ -174,7 +186,7 @@ export function DashboardContent() {
     return () => {
       isMounted = false;
     };
-  }, [periodDays]);
+  }, [periodDays, selectedDate]);
 
   const maxRevenue = useMemo(
     () =>
@@ -244,21 +256,28 @@ export function DashboardContent() {
     ];
   }, [data]);
 
+  const selectedDateKey = data?.selectedDate ?? "";
+  const selectedDateLabel = data?.isSelectedToday
+    ? `hôm nay (${data.selectedDateLabel})`
+    : (data?.selectedDateLabel ?? "ngày đã chọn");
+
   const kpiCards = [
     {
-      label: "Doanh thu hôm nay",
+      label: data?.isSelectedToday
+        ? "Doanh thu hôm nay"
+        : `Doanh thu ${data?.selectedDateLabel ?? ""}`,
       value: data ? formatMoney(data.todayRevenue) : "--",
       subcopy: `${data?.todayPaidOrders ?? 0} hóa đơn đã thanh toán`,
     },
     {
       label: "Số hóa đơn",
       value: data ? data.todayPaidOrders.toString() : "--",
-      subcopy: `${data?.todayOrders ?? 0} đơn được tạo hôm nay`,
+      subcopy: `${data?.todayOrders ?? 0} đơn được tạo trong ngày`,
     },
     {
-      label: "Trung bình / hóa đơn",
-      value: data ? formatMoney(data.averageInvoiceValue) : "--",
-      subcopy: "Giá trị hóa đơn trung bình hôm nay",
+      label: `Doanh thu ${periodDays} ngày`,
+      value: formatMoney(totalRevenueInChart),
+      subcopy: `${totalInvoicesInChart} hóa đơn trong kỳ`,
     },
     {
       label: "Menu đang bán",
@@ -324,8 +343,24 @@ export function DashboardContent() {
               <p className="mt-1 text-sm font-semibold text-[#625b50]">
                 Tổng kỳ: {formatMoney(totalRevenueInChart)}
               </p>
+              <p className="mt-1 text-sm font-black text-[#2f5d50]">
+                Đang xem:{" "}
+                {data?.isSelectedToday
+                  ? `Hôm nay (${data.selectedDateLabel})`
+                  : data?.selectedDateLabel}
+              </p>
             </div>
-            <CountPill>{totalInvoicesInChart} hóa đơn</CountPill>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-full border border-[#d6d1c7] bg-white px-3 py-2 text-xs font-black text-[#3b352d] transition hover:bg-[#f8f3ea] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!selectedDate}
+                onClick={() => setSelectedDate("")}
+                type="button"
+              >
+                Hôm nay
+              </button>
+              <CountPill>{totalInvoicesInChart} hóa đơn</CountPill>
+            </div>
           </div>
 
           <div
@@ -344,21 +379,28 @@ export function DashboardContent() {
                   </div>
                 ))
               : data?.dailyRevenue.map((item) => (
-                  <div
-                    className="flex h-full min-w-0 flex-col items-center justify-end gap-2"
+                  <button
+                    aria-pressed={item.date === selectedDateKey}
+                    className="flex h-full min-w-0 flex-col items-center justify-end gap-2 rounded-t-xl outline-none transition hover:bg-[#f8f3ea]/70 focus-visible:ring-2 focus-visible:ring-[#2f5d50]"
                     key={item.date}
+                    onClick={() => setSelectedDate(item.date)}
                     title={`${item.label}: ${formatMoney(item.revenue)}`}
+                    type="button"
                   >
                     <span className="text-[11px] font-black text-[#625b50]">
                       {item.paidOrderCount}
                     </span>
                     <div
-                      className="w-full rounded-t-xl bg-[#2f5d50] shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]"
+                      className={
+                        item.date === selectedDateKey
+                          ? "w-full rounded-t-xl bg-[#f2a93b] shadow-[inset_0_1px_0_rgba(255,255,255,0.36)]"
+                          : "w-full rounded-t-xl bg-[#2f5d50] shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]"
+                      }
                       style={{
                         height: `${getBarHeight(item.revenue, maxRevenue)}px`,
                       }}
                     />
-                  </div>
+                  </button>
                 ))}
           </div>
 
@@ -396,7 +438,7 @@ export function DashboardContent() {
             <PanelHeader
               className="border-b-0 p-0"
               title="Tỷ lệ thanh toán"
-              description="Tính theo doanh thu hóa đơn."
+              description={`Tính theo doanh thu hóa đơn ${selectedDateLabel}.`}
             />
 
             <div className="mt-5 overflow-hidden rounded-full bg-[#f1eadf]">
@@ -442,7 +484,7 @@ export function DashboardContent() {
           <Panel className="p-5">
             <PanelHeader
               className="border-b-0 p-0"
-              title="Bàn hoạt động nhiều"
+              title={`Bàn hoạt động ${selectedDateLabel}`}
               aside={<CountPill>{data?.topTables.length ?? 0} bàn</CountPill>}
             />
 
@@ -495,7 +537,7 @@ export function DashboardContent() {
           <PanelHeader
             className="border-b-0 p-0"
             title="Top món bán chạy"
-            description="Xếp theo số lượng và doanh thu đã thanh toán."
+            description={`Xếp theo số lượng và doanh thu đã thanh toán ${selectedDateLabel}.`}
           />
 
           <div className="mt-4 flex flex-col gap-3">
@@ -548,7 +590,7 @@ export function DashboardContent() {
         <Panel className="min-w-0 overflow-hidden">
           <PanelHeader
             title="Hóa đơn gần nhất"
-            description="Thu ngân có thể mở nhanh bản in hóa đơn."
+            description={`Thu ngân có thể mở nhanh hóa đơn trong ${selectedDateLabel}.`}
             aside={<CountPill>{data?.recentInvoices.length ?? 0} hóa đơn</CountPill>}
           />
 

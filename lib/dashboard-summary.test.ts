@@ -1,8 +1,29 @@
 import { strict as assert } from "node:assert";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
-import { buildDashboardSummaryResult } from "./dashboard-summary";
+import {
+  buildDashboardSummaryResult,
+  createDashboardDayRange,
+  normalizeDashboardDate,
+} from "./dashboard-summary";
+
+const vietnamEarlyMorning = new Date("2026-06-12T20:53:00.000Z");
+const todayRange = createDashboardDayRange(
+  normalizeDashboardDate(null, vietnamEarlyMorning),
+);
+
+assert.equal(todayRange.date, "2026-06-13");
+assert.equal(todayRange.label, "13/06");
+assert.equal(todayRange.start.toISOString(), "2026-06-12T17:00:00.000Z");
+assert.equal(todayRange.end.toISOString(), "2026-06-13T17:00:00.000Z");
+assert.equal(normalizeDashboardDate("2026-06-01", vietnamEarlyMorning), "2026-06-01");
+assert.equal(normalizeDashboardDate("bad-date", vietnamEarlyMorning), "2026-06-13");
 
 const result = buildDashboardSummaryResult({
+  selectedDay: {
+    date: "2026-06-01",
+    label: "01/06",
+    isToday: false,
+  },
   rawSummary: {
     todayRevenue: 70_000,
     todayOrders: 3,
@@ -88,6 +109,9 @@ const result = buildDashboardSummaryResult({
   ],
 });
 
+assert.equal(result.selectedDate, "2026-06-01");
+assert.equal(result.selectedDateLabel, "01/06");
+assert.equal(result.isSelectedToday, false);
 assert.equal(result.todayRevenue, 70_000);
 assert.equal(result.averageInvoiceValue, 35_000);
 assert.equal(result.availableProducts, 12);

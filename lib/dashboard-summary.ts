@@ -1,35 +1,116 @@
 import { OrderStatus, PaymentMethod, ProductStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+const vietnamOffsetMs = 7 * 60 * 60 * 1000;
+const dateKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+type DashboardSelectedDay = {
+  date: string;
+  label: string;
+  isToday: boolean;
+};
 
-  return { start, end };
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return { day, month, year };
 }
 
-function addDays(date: Date, days: number) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
+function formatDateKeyFromParts({
+  day,
+  month,
+  year,
+}: {
+  day: number;
+  month: number;
+  year: number;
+}) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function formatDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+function formatDateLabelFromKey(dateKey: string) {
+  const parsedDate = parseDateKey(dateKey);
 
-  return `${year}-${month}-${day}`;
+  if (!parsedDate) {
+    return dateKey;
+  }
+
+  return `${String(parsedDate.day).padStart(2, "0")}/${String(parsedDate.month).padStart(2, "0")}`;
 }
 
-function formatDateLabel(date: Date) {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
+function addDaysToDateKey(dateKey: string, days: number) {
+  const parsedDate = parseDateKey(dateKey);
 
-  return `${day}/${month}`;
+  if (!parsedDate) {
+    return dateKey;
+  }
+
+  const nextDate = new Date(
+    Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day + days),
+  );
+
+  return formatDateKeyFromParts({
+    day: nextDate.getUTCDate(),
+    month: nextDate.getUTCMonth() + 1,
+    year: nextDate.getUTCFullYear(),
+  });
+}
+
+export function normalizeDashboardDate(value: unknown, now = new Date()) {
+  if (typeof value === "string" && dateKeyPattern.test(value) && parseDateKey(value)) {
+    return value;
+  }
+
+  const vietnamNow = new Date(now.getTime() + vietnamOffsetMs);
+
+  return formatDateKeyFromParts({
+    day: vietnamNow.getUTCDate(),
+    month: vietnamNow.getUTCMonth() + 1,
+    year: vietnamNow.getUTCFullYear(),
+  });
+}
+
+export function createDashboardDayRange(dateKey: string) {
+  const parsedDate = parseDateKey(dateKey);
+
+  if (!parsedDate) {
+    throw new Error(`Invalid dashboard date: ${dateKey}`);
+  }
+
+  const start = new Date(
+    Date.UTC(parsedDate.year, parsedDate.month - 1, parsedDate.day) -
+      vietnamOffsetMs,
+  );
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  return {
+    date: dateKey,
+    end,
+    label: formatDateLabelFromKey(dateKey),
+    start,
+  };
 }
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
@@ -144,9 +225,11 @@ export function normalizeDashboardDays(value: unknown) {
 export function buildDashboardSummaryResult({
   dayBuckets,
   rawSummary,
+  selectedDay,
 }: {
   dayBuckets: DashboardDayBucket[];
   rawSummary: RawDashboardSummary;
+  selectedDay: DashboardSelectedDay;
 }) {
   const dailyRevenueByDate = new Map(
     rawSummary.dailyRevenue.map((item) => [item.date, item]),
@@ -172,6 +255,9 @@ export function buildDashboardSummaryResult({
   );
 
   return {
+    selectedDate: selectedDay.date,
+    selectedDateLabel: selectedDay.label,
+    isSelectedToday: selectedDay.isToday,
     todayRevenue: toNumber(rawSummary.todayRevenue),
     todayOrders: toNumber(rawSummary.todayOrders),
     todayPaidOrders: toNumber(rawSummary.todayPaidOrders),
@@ -252,22 +338,33 @@ export function buildDashboardSummaryResult({
   };
 }
 
-export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) {
+export async function getDashboardSummary({
+  date,
+  days = 7,
+}: {
+  date?: string | null;
+  days?: number;
+} = {}) {
   const chartDays = normalizeDashboardDays(days);
-  const { start } = getTodayRange();
-  const chartStart = addDays(start, -(chartDays - 1));
+  const todayDateKey = normalizeDashboardDate(null);
+  const selectedDateKey = normalizeDashboardDate(date);
+  const selectedRange = createDashboardDayRange(selectedDateKey);
+  const chartStartDateKey = addDaysToDateKey(todayDateKey, -(chartDays - 1));
+  const chartStart = createDashboardDayRange(chartStartDateKey).start;
+  const chartEnd = createDashboardDayRange(todayDateKey).start;
+  const start = selectedRange.start;
+  const end = selectedRange.end;
   const dayBuckets = Array.from({ length: chartDays }, (_, index) => {
-    const date = addDays(chartStart, index);
+    const dateKey = addDaysToDateKey(chartStartDateKey, index);
 
     return {
-      date: formatDateKey(date),
-      label: formatDateLabel(date),
+      date: dateKey,
+      label: formatDateLabelFromKey(dateKey),
       revenue: 0,
       orderCount: 0,
       paidOrderCount: 0,
     };
   });
-  const end = addDays(start, 1);
   const rows = await prisma.$queryRaw<Array<{ summary: RawDashboardSummary }>>`
     SELECT jsonb_build_object(
       'todayRevenue',
@@ -313,7 +410,10 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
           FROM (
             SELECT
               bucket.day_start,
-              to_char(bucket.day_start, 'YYYY-MM-DD') AS date,
+              to_char(
+                bucket.day_start + interval '7 hours',
+                'YYYY-MM-DD'
+              ) AS date,
               COALESCE((
                 SELECT SUM(total_amount)::int
                 FROM invoices
@@ -334,7 +434,7 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
               ), 0) AS paid_order_count
             FROM generate_series(
               ${chartStart}::timestamp,
-              ${start}::timestamp,
+              ${chartEnd}::timestamp,
               interval '1 day'
             ) AS bucket(day_start)
           ) daily
@@ -360,9 +460,12 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
               SUM(oi.price * oi.quantity)::int AS revenue
             FROM order_items oi
             INNER JOIN orders o ON o.id = oi.order_id
+            INNER JOIN invoices i ON i.order_id = o.id
             INNER JOIN products p ON p.id = oi.product_id
             INNER JOIN categories c ON c.id = p.category_id
             WHERE o.status::text = ${OrderStatus.PAID}
+              AND i.paid_at >= ${start}::timestamp
+              AND i.paid_at < ${end}::timestamp
             GROUP BY p.id, p.name, c.name
             ORDER BY quantity DESC, revenue DESC, p.name ASC
             LIMIT 5
@@ -384,6 +487,8 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
               COUNT(*)::int AS invoice_count,
               COALESCE(SUM(total_amount), 0)::int AS revenue
             FROM invoices
+            WHERE paid_at >= ${start}::timestamp
+              AND paid_at < ${end}::timestamp
             GROUP BY payment_method
           ) payment_rows
         ), '[]'::jsonb),
@@ -407,6 +512,8 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
             FROM invoices i
             INNER JOIN orders o ON o.id = i.order_id
             INNER JOIN cafe_tables t ON t.id = o.table_id
+            WHERE i.paid_at >= ${start}::timestamp
+              AND i.paid_at < ${end}::timestamp
             GROUP BY t.id, t.name
             ORDER BY invoice_count DESC, revenue DESC, t.name ASC
             LIMIT 5
@@ -424,6 +531,8 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
           FROM (
             SELECT status, COUNT(*)::int AS order_count
             FROM orders
+            WHERE created_at >= ${start}::timestamp
+              AND created_at < ${end}::timestamp
             GROUP BY status
           ) status_rows
         ), '[]'::jsonb),
@@ -457,6 +566,8 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
             FROM invoices i
             INNER JOIN orders o ON o.id = i.order_id
             INNER JOIN cafe_tables t ON t.id = o.table_id
+            WHERE i.paid_at >= ${start}::timestamp
+              AND i.paid_at < ${end}::timestamp
             ORDER BY i.paid_at DESC
             LIMIT 6
           ) recent
@@ -494,6 +605,8 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
               ) AS item_count
             FROM orders o
             INNER JOIN cafe_tables t ON t.id = o.table_id
+            WHERE o.created_at >= ${start}::timestamp
+              AND o.created_at < ${end}::timestamp
             ORDER BY o.created_at DESC
             LIMIT 5
           ) recent
@@ -506,5 +619,10 @@ export async function getDashboardSummary({ days = 7 }: { days?: number } = {}) 
     rawSummary:
       typeof rawSummary === "string" ? JSON.parse(rawSummary) : rawSummary,
     dayBuckets,
+    selectedDay: {
+      date: selectedDateKey,
+      isToday: selectedDateKey === todayDateKey,
+      label: selectedRange.label,
+    },
   });
 }
