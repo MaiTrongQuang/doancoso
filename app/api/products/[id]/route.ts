@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { ProductStatus } from "@prisma/client";
+import { menuCatalogCacheTag } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -127,14 +129,14 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!product) {
       return NextResponse.json(
-        { message: "San pham khong ton tai." },
+        { message: "Sản phẩm không tồn tại." },
         { status: 404 },
       );
     }
 
     if (!category) {
       return NextResponse.json(
-        { message: "Danh muc khong ton tai." },
+        { message: "Danh mục không tồn tại." },
         { status: 404 },
       );
     }
@@ -165,6 +167,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
         },
       },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Cập nhật sản phẩm thành công.",
@@ -214,7 +217,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!product) {
       return NextResponse.json(
-        { message: "San pham khong ton tai." },
+        { message: "Sản phẩm không tồn tại." },
         { status: 404 },
       );
     }
@@ -232,6 +235,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     await prisma.product.delete({
       where: { id },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Xóa sản phẩm thành công.",

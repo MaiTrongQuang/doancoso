@@ -21,7 +21,7 @@ export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && userRoles.includes(value as UserRole);
 }
 
-export const protectedRoutePrefixes = ["/admin", "/staff", "/cashier"];
+export const protectedRoutePrefixes = ["/admin", "/staff", "/cashier", "/invoices"];
 
 export function isProtectedPath(pathname: string) {
   return protectedRoutePrefixes.some((prefix) => pathname.startsWith(prefix));
@@ -32,7 +32,8 @@ export function canAccessPath(role: UserRole, pathname: string) {
     return (
       pathname.startsWith("/admin") ||
       pathname.startsWith("/staff") ||
-      pathname.startsWith("/cashier")
+      pathname.startsWith("/cashier") ||
+      pathname.startsWith("/invoices")
     );
   }
 
@@ -41,7 +42,7 @@ export function canAccessPath(role: UserRole, pathname: string) {
   }
 
   if (role === "CASHIER") {
-    return pathname.startsWith("/cashier");
+    return pathname.startsWith("/cashier") || pathname.startsWith("/invoices");
   }
 
   return false;

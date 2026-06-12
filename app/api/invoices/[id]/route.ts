@@ -14,51 +14,72 @@ function parseId(value: string) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+type InvoiceOrder = {
+  id: number;
+  status: OrderStatus;
+  note: string | null;
+  totalAmount: number;
+  createdAt: Date;
+  table: {
+    id: number;
+    name: string;
+  };
+  items: Array<{
+    id: number;
+    productId: number;
+    quantity: number;
+    price: number;
+    note: string | null;
+    product: {
+      id: number;
+      name: string;
+    };
+  }>;
+};
+
 function serializeInvoice(invoice: {
   id: number;
   orderId: number;
+  sessionId: number | null;
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paidAt: Date;
   createdAt: Date;
-  order: {
+  order: InvoiceOrder;
+  session: {
     id: number;
-    status: OrderStatus;
-    note: string | null;
-    totalAmount: number;
-    createdAt: Date;
-    table: {
-      id: number;
-      name: string;
-    };
-    items: Array<{
-      id: number;
-      productId: number;
-      quantity: number;
-      price: number;
-      note: string | null;
-      product: {
-        id: number;
-        name: string;
-      };
-    }>;
-  };
+    orders: InvoiceOrder[];
+  } | null;
 }) {
+  const billOrders =
+    invoice.session?.orders.filter(
+      (order) => order.status !== OrderStatus.CANCELLED,
+    ) ?? [invoice.order];
+  const sortedOrders = [...billOrders].sort(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+  const [firstOrder] = sortedOrders;
+
+  if (!firstOrder) {
+    throw new Error("Cannot serialize invoice without billable orders.");
+  }
+
   return {
     id: invoice.id,
     orderId: invoice.orderId,
+    sessionId: invoice.sessionId,
     totalAmount: invoice.totalAmount,
     paymentMethod: invoice.paymentMethod,
     paidAt: invoice.paidAt.toISOString(),
     createdAt: invoice.createdAt.toISOString(),
     order: {
-      id: invoice.order.id,
-      status: invoice.order.status,
-      note: invoice.order.note,
-      totalAmount: invoice.order.totalAmount,
-      createdAt: invoice.order.createdAt.toISOString(),
-      table: invoice.order.table,
-      items: invoice.order.items.map((item) => ({
+      id: firstOrder.id,
+      status: firstOrder.status,
+      note: sortedOrders.map((order) => order.note).find(Boolean) ?? null,
+      totalAmount: invoice.totalAmount,
+      createdAt: firstOrder.createdAt.toISOString(),
+      table: firstOrder.table,
+      items: sortedOrders.flatMap((order) => order.items).map((item) => ({
         id: item.id,
         productId: item.productId,
         productName: item.product.name,
@@ -76,7 +97,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma hoa don khong hop le." },
+      { message: "Mã hóa đơn không hợp lệ." },
       { status: 400 },
     );
   }
@@ -86,7 +107,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!canReadInvoice) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem hoa don." },
+        { message: "Bạn không có quyền xem hóa đơn." },
         { status: 403 },
       );
     }
@@ -119,12 +140,42 @@ export async function GET(_request: Request, { params }: RouteContext) {
             },
           },
         },
+        session: {
+          include: {
+            orders: {
+              orderBy: {
+                createdAt: "asc",
+              },
+              include: {
+                table: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+                items: {
+                  orderBy: {
+                    id: "asc",
+                  },
+                  include: {
+                    product: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
     if (!invoice) {
       return NextResponse.json(
-        { message: "Hoa don khong ton tai." },
+        { message: "Hóa đơn không tồn tại." },
         { status: 404 },
       );
     }

@@ -272,10 +272,24 @@ async function seedProducts() {
   );
   const activeProductNames = products.map((product) => product.name);
 
+  await prisma.product.deleteMany({
+    where: {
+      name: {
+        notIn: activeProductNames,
+      },
+      orderItems: {
+        none: {},
+      },
+    },
+  });
+
   await prisma.product.updateMany({
     where: {
       name: {
         notIn: activeProductNames,
+      },
+      orderItems: {
+        some: {},
       },
     },
     data: {
@@ -312,6 +326,14 @@ async function seedProducts() {
 
     await prisma.product.create({ data });
   }
+
+  await prisma.category.deleteMany({
+    where: {
+      products: {
+        none: {},
+      },
+    },
+  });
 }
 
 async function seedTables() {

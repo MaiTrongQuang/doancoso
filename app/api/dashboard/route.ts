@@ -8,7 +8,7 @@ export async function GET() {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem dashboard." },
+        { message: "Bạn không có quyền xem dashboard." },
         { status: 403 },
       );
     }

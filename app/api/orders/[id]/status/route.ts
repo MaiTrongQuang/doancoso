@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { OrderStatus, TableStatus } from "@prisma/client";
+import { DiningSessionStatus, OrderStatus, TableStatus } from "@prisma/client";
+import {
+  canTransitionOrderStatus,
+  isOrderStatus,
+} from "@/lib/order-status-flow";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
+import { activeTableOrderStatuses } from "@/lib/table-session-flow";
 
 type RouteContext = {
   params: Promise<{
@@ -9,36 +14,13 @@ type RouteContext = {
   }>;
 };
 
-const nextStatusByCurrent: Record<OrderStatus, OrderStatus[]> = {
-  PENDING: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-  CONFIRMED: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-  PREPARING: [OrderStatus.SERVED, OrderStatus.CANCELLED],
-  SERVED: [],
-  PAID: [],
-  CANCELLED: [],
-};
-
-const activeTableStatuses = [
-  OrderStatus.PENDING,
-  OrderStatus.CONFIRMED,
-  OrderStatus.PREPARING,
-  OrderStatus.SERVED,
-];
-
 function parseId(value: string) {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 function normalizeStatus(value: unknown) {
-  if (
-    value === OrderStatus.PENDING ||
-    value === OrderStatus.CONFIRMED ||
-    value === OrderStatus.PREPARING ||
-    value === OrderStatus.SERVED ||
-    value === OrderStatus.PAID ||
-    value === OrderStatus.CANCELLED
-  ) {
+  if (isOrderStatus(value)) {
     return value;
   }
 
@@ -93,7 +75,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma don hang khong hop le." },
+      { message: "Mã đơn hàng không hợp lệ." },
       { status: 400 },
     );
   }
@@ -103,7 +85,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!canUpdateOrder) {
       return NextResponse.json(
-        { message: "Ban khong co quyen cap nhat don hang." },
+        { message: "Bạn không có quyền cập nhật đơn hàng." },
         { status: 403 },
       );
     }
@@ -113,7 +95,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!nextStatus) {
       return NextResponse.json(
-        { message: "Trang thai don hang khong hop le." },
+        { message: "Trạng thái đơn hàng không hợp lệ." },
         { status: 400 },
       );
     }
@@ -123,18 +105,19 @@ export async function PUT(request: Request, { params }: RouteContext) {
       select: {
         id: true,
         tableId: true,
+        sessionId: true,
         status: true,
       },
     });
 
     if (!order) {
       return NextResponse.json(
-        { message: "Don hang khong ton tai." },
+        { message: "Đơn hàng không tồn tại." },
         { status: 404 },
       );
     }
 
-    if (!nextStatusByCurrent[order.status].includes(nextStatus)) {
+    if (!canTransitionOrderStatus(order.status, nextStatus)) {
       return NextResponse.json(
         { message: "Không thể chuyển trạng thái đơn hàng theo luồng này." },
         { status: 400 },
@@ -142,40 +125,11 @@ export async function PUT(request: Request, { params }: RouteContext) {
     }
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
-      await tx.order.update({
+      const updatedOrder = await tx.order.update({
         where: { id },
         data: {
           status: nextStatus,
         },
-      });
-
-      if (nextStatus === OrderStatus.CANCELLED) {
-        const activeOrdersInTable = await tx.order.count({
-          where: {
-            tableId: order.tableId,
-            id: {
-              not: id,
-            },
-            status: {
-              in: activeTableStatuses,
-            },
-          },
-        });
-
-        if (activeOrdersInTable === 0) {
-          await tx.cafeTable.update({
-            where: {
-              id: order.tableId,
-            },
-            data: {
-              status: TableStatus.AVAILABLE,
-            },
-          });
-        }
-      }
-
-      return tx.order.findUniqueOrThrow({
-        where: { id },
         include: {
           table: {
             select: {
@@ -198,10 +152,60 @@ export async function PUT(request: Request, { params }: RouteContext) {
           },
         },
       });
+
+      if (nextStatus === OrderStatus.CANCELLED) {
+        const activeOrdersInTable = await tx.order.count({
+          where: {
+            tableId: order.tableId,
+            id: {
+              not: id,
+            },
+            status: {
+              in: [...activeTableOrderStatuses],
+            },
+          },
+        });
+
+        if (activeOrdersInTable === 0) {
+          await tx.cafeTable.update({
+            where: {
+              id: order.tableId,
+            },
+            data: {
+              status: TableStatus.AVAILABLE,
+            },
+          });
+        }
+
+        if (order.sessionId) {
+          const remainingBillableOrders = await tx.order.count({
+            where: {
+              sessionId: order.sessionId,
+              status: {
+                not: OrderStatus.CANCELLED,
+              },
+            },
+          });
+
+          if (remainingBillableOrders === 0) {
+            await tx.diningSession.update({
+              where: {
+                id: order.sessionId,
+              },
+              data: {
+                status: DiningSessionStatus.CANCELLED,
+                closedAt: new Date(),
+              },
+            });
+          }
+        }
+      }
+
+      return updatedOrder;
     });
 
     return NextResponse.json({
-      message: "Cap nhat trang thai don hang thanh cong.",
+      message: "Cập nhật trạng thái đơn hàng thành công.",
       data: serializeOrder(updatedOrder),
     });
   } catch (error) {

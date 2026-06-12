@@ -1,8 +1,8 @@
 # Cafe POS QR Order
 
-Website POS cho quan ca phe, co QR Order tai ban. Khach hang quet QR tai ban de goi mon, nhan vien xu ly don, thu ngan thanh toan, admin quan ly du lieu va thong ke.
+Website POS cho quán cà phê có QR Order tại bàn. Khách quét mã QR để gọi món, bếp nhận đơn theo thời gian thực, thu ngân thanh toán theo phiên bàn và admin quản lý dữ liệu vận hành.
 
-## Cong nghe
+## Công nghệ
 
 - Next.js App Router
 - TypeScript
@@ -10,32 +10,33 @@ Website POS cho quan ca phe, co QR Order tai ban. Khach hang quet QR tai ban de 
 - Prisma ORM 6.x
 - Supabase PostgreSQL
 - bcrypt
-- Cookie session hoac JWT se duoc lam o buoc dang nhap
+- JWT httpOnly cookie
 
-Khong dung MySQL. Khong dung Supabase Auth trong giai doan dau.
+Không dùng MySQL. Không dùng Supabase Auth.
 
-## Nhom nguoi dung
+## Nhóm người dùng
 
-- `CUSTOMER`: Khong dang nhap, quet QR tai ban, xem menu, them mon vao gio, gui don va xem thong bao thanh cong.
-- `STAFF`: Dang nhap, xem don moi da duoc he thong tu dong dua vao bep, cap nhat trang thai chuan bi/phuc vu va huy don khi can.
-- `CASHIER`: Dang nhap, xem don da phuc vu, chon phuong thuc thanh toan, thanh toan va tao hoa don.
-- `ADMIN`: Dang nhap, quan ly danh muc, san pham, ban, don hang, hoa don, nhan vien va xem dashboard thong ke.
+- `CUSTOMER`: Không cần đăng nhập, quét QR tại bàn, xem menu, thêm món vào giỏ và gửi đơn.
+- `STAFF`: Đăng nhập để xem màn hình bếp, xác nhận đơn, bắt đầu chuẩn bị, chuyển sang đã phục vụ hoặc hủy đơn.
+- `CASHIER`: Đăng nhập để xem các phiên bàn đã phục vụ, thanh toán và in hóa đơn.
+- `ADMIN`: Quản lý danh mục, sản phẩm, bàn, đơn hàng, hóa đơn, nhân viên và dashboard thống kê.
 
-## Trang da tao o buoc 1
+## Trang chính
 
-- `/login`
-- `/admin/dashboard`
-- `/admin/categories`
-- `/admin/products`
-- `/admin/tables`
-- `/admin/orders`
-- `/admin/invoices`
-- `/admin/users`
-- `/staff/orders`
-- `/cashier/orders`
-- `/order/table/[tableId]`
+- `/login`: Đăng nhập theo vai trò.
+- `/admin/dashboard`: Dashboard doanh thu, đơn hàng, sản phẩm và bàn.
+- `/admin/categories`: Quản lý danh mục hiển thị trên menu.
+- `/admin/products`: Quản lý sản phẩm, trạng thái bán, danh mục và ảnh món.
+- `/admin/tables`: Quản lý bàn, trạng thái bàn, phiên phục vụ và QR gọi món.
+- `/admin/orders`: Theo dõi toàn bộ đơn hàng.
+- `/admin/invoices`: Quản lý hóa đơn, lọc theo khoảng ngày thanh toán.
+- `/admin/users`: Quản lý nhân viên và tài khoản.
+- `/staff/orders`: Màn hình bếp, tự động làm mới, sắp xếp đơn theo độ gấp và thời gian chờ.
+- `/cashier/orders`: Thu ngân thanh toán theo phiên bàn.
+- `/order/table/[tableId]`: Trang khách gọi món bằng QR.
+- `/invoices/[id]/print`: Phiếu thanh toán nhỏ dạng hóa đơn in nhiệt.
 
-## API da tao
+## API chính
 
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
@@ -48,6 +49,7 @@ Khong dung MySQL. Khong dung Supabase Auth trong giai doan dau.
 - `POST /api/products`
 - `PUT /api/products/[id]`
 - `DELETE /api/products/[id]`
+- `POST /api/uploads/product-image`
 - `GET /api/tables`
 - `POST /api/tables`
 - `PUT /api/tables/[id]`
@@ -65,124 +67,58 @@ Khong dung MySQL. Khong dung Supabase Auth trong giai doan dau.
 - `PUT /api/users/[id]`
 - `DELETE /api/users/[id]`
 
-`GET /api/dashboard/summary` tra ve:
+## Chức năng đã hoàn thiện
 
-```json
-{
-  "todayRevenue": 0,
-  "todayOrders": 0,
-  "todayPaidOrders": 0,
-  "availableProducts": 0,
-  "totalTables": 0,
-  "recentOrders": []
-}
-```
+- Đăng nhập bằng email/password, hash mật khẩu bằng bcrypt và lưu phiên bằng JWT httpOnly cookie.
+- Phân quyền route theo vai trò `ADMIN`, `STAFF`, `CASHIER`; khách chỉ truy cập được trang QR order.
+- Admin CRUD danh mục, sản phẩm, bàn và nhân viên.
+- Sản phẩm có trạng thái `AVAILABLE` / `UNAVAILABLE`; chỉ món đang bán và danh mục có món đang bán mới xuất hiện trên menu khách.
+- Trang sản phẩm hỗ trợ nhập link ảnh hoặc tải ảnh món từ file lên thư mục `public/images/products`.
+- Bàn có trạng thái `AVAILABLE`, `OCCUPIED`, `RESERVED`; khi khách gửi món lần đầu từ QR, hệ thống tự mở phiên phục vụ `DiningSession`.
+- QR tại bàn vẫn là link tĩnh `/order/table/[tableId]`; khách ngồi vào bàn là có thể gọi món, các lần gọi sau tự gom vào phiên đang mở.
+- Mỗi lần khách gửi món tạo một order riêng, nhưng các order cùng phiên bàn được gom vào một bill khi thanh toán.
+- Backend tự tính `totalAmount`, kiểm tra món còn bán và không tin dữ liệu giá từ client.
+- Màn hình bếp tự động làm mới, hiển thị đơn mới, đã xác nhận, đang chuẩn bị, thời gian chờ và cảnh báo đơn quá lâu.
+- Luồng đơn hàng có kiểm soát: `PENDING -> CONFIRMED -> PREPARING -> SERVED -> PAID`, có thể hủy khi còn mở.
+- Thu ngân chỉ thanh toán khi toàn bộ đơn trong phiên bàn đã được phục vụ hoặc đã hủy.
+- Khi thanh toán, hệ thống chỉ trả bàn về trống nếu bàn không còn đơn/phiên đang mở.
+- Hóa đơn lưu `paymentMethod`, `paidAt`, tổng tiền và danh sách món gộp theo phiên bàn.
+- Trang in hóa đơn nhỏ gọn, có địa chỉ `xx, Phú Nhuận, Tp.HCM`, điện thoại `098 xxx` và lời cảm ơn cuối phiếu.
+- Dashboard thống kê doanh thu hôm nay, đơn hôm nay, đơn đã thanh toán, sản phẩm đang bán, tổng bàn và đơn gần đây.
 
-Auth hien da hoat dong voi bcrypt va JWT httpOnly cookie:
+## Database models
 
-- `POST /api/auth/login`: nhan email/password, so sanh password hash, set cookie, tra ve user khong gom password.
-- `POST /api/auth/logout`: xoa cookie dang nhap.
-- `GET /api/auth/me`: tra ve user hien tai neu cookie hop le.
+Prisma schema gồm:
 
-Phan quyen route:
+- `User`
+- `Category`
+- `Product`
+- `CafeTable`
+- `DiningSession`
+- `Order`
+- `OrderItem`
+- `Invoice`
 
-- `ADMIN`: vao duoc `/admin/*`, `/staff/*`, `/cashier/*`.
-- `STAFF`: vao duoc `/staff/*`.
-- `CASHIER`: vao duoc `/cashier/*`.
-- `CUSTOMER`: khong dang nhap, vao `/order/table/[tableId]`.
+Enums:
 
-## Chuc nang da lam
+- `Role`: `ADMIN`, `STAFF`, `CASHIER`
+- `ProductStatus`: `AVAILABLE`, `UNAVAILABLE`
+- `TableStatus`: `AVAILABLE`, `OCCUPIED`, `RESERVED`
+- `DiningSessionStatus`: `OPEN`, `CLOSED`, `CANCELLED`
+- `OrderStatus`: `PENDING`, `CONFIRMED`, `PREPARING`, `SERVED`, `PAID`, `CANCELLED`
+- `PaymentMethod`: `CASH`, `BANK_TRANSFER`, `QR_PAYMENT`
 
-- `/admin/categories`: hien thi danh sach danh muc, them, sua, xoa, xac nhan truoc khi xoa.
-- `POST /api/categories`, `PUT /api/categories/[id]`, `DELETE /api/categories/[id]`: yeu cau role `ADMIN`.
-- `DELETE /api/categories/[id]`: khong cho xoa neu danh muc van con san pham va tra loi loi ro rang.
-- `/admin/products`: hien thi danh sach san pham, them, sua, xoa, bat/tat trang thai dang ban, loc theo danh muc, tim kiem theo ten.
-- `POST /api/products`, `PUT /api/products/[id]`, `DELETE /api/products/[id]`: yeu cau role `ADMIN`.
-- `DELETE /api/products/[id]`: khong cho xoa neu san pham da ton tai trong don hang va tra loi loi ro rang.
-- `/admin/tables`: hien thi danh sach ban, them, sua, xoa, cap nhat trang thai, hien thi link goi mon, QR demo va nut copy link.
-- `POST /api/tables`, `PUT /api/tables/[id]`, `DELETE /api/tables/[id]`: yeu cau role `ADMIN`.
-- `DELETE /api/tables/[id]`: khong cho xoa ban neu ban da co don hang trong he thong.
-- `/order/table/[tableId]`: trang khach hang goi mon, toi uu cho dien thoai, hien thi ban, danh muc, san pham dang ban, gio hang, ghi chu va tong tien.
-- `POST /api/orders`: khach hang khong can dang nhap, tao order `CONFIRMED` de bep nhan don tuc thi, tao order item, backend tu tinh `totalAmount` va cap nhat ban sang `OCCUPIED`.
-- `/staff/orders`: hien thi cac don bep da nhan (`CONFIRMED`, kem `PENDING` cu neu co) va `PREPARING` theo dang card, tu dong lam moi de bep nhan don moi.
-- `PUT /api/orders/[id]/status`: STAFF/ADMIN cap nhat dung luong `CONFIRMED -> PREPARING -> SERVED`; don `PENDING` cu duoc xu ly truc tiep sang `PREPARING`, hoac huy don khi can.
-- `/cashier/orders`: hien thi don `SERVED`, chon don, xem chi tiet, chon phuong thuc thanh toan va tao hoa don don gian.
-- `POST /api/invoices`: CASHIER/ADMIN tao invoice, cap nhat order sang `PAID` va cap nhat ban ve `AVAILABLE`.
-- `GET /api/invoices`, `GET /api/invoices/[id]`: tra ve hoa don kem thong tin don, ban va danh sach mon.
-- `/admin/orders`: xem tat ca don hang, loc theo trang thai/ngay tao, xem chi tiet don va hien thi tong tien VND.
-- `/admin/invoices`: xem danh sach hoa don, loc theo ngay thanh toan, xem chi tiet hoa don, phuong thuc va thoi gian thanh toan.
-- `/admin/*`: dung layout chung co sidebar ben trai gom Dashboard, Danh muc, San pham, Ban, Don hang, Hoa don, Nhan vien va Dang xuat.
+Tiền được lưu bằng `Int`, không dùng `Float`. Ví dụ `25000` nghĩa là 25.000 VND.
 
-## Cau truc thu muc chinh
+## Cài đặt và chạy project
 
-```text
-app/
-  api/
-    auth/
-      login/
-      logout/
-      me/
-    categories/
-    products/
-    tables/
-    orders/
-    invoices/
-    dashboard/
-  admin/
-    dashboard/
-    categories/
-    products/
-    tables/
-    orders/
-    invoices/
-    users/
-  cashier/
-    orders/
-  login/
-  order/
-    table/
-      [tableId]/
-  staff/
-    orders/
-  layout.tsx
-  page.tsx
-components/
-  layout/
-  ui/
-  categories/
-  products/
-  tables/
-  orders/
-  invoices/
-lib/
-  prisma.ts
-  auth.ts
-  jwt.ts
-  format-money.ts
-  utils.ts
-middleware.ts
-prisma/
-  schema.prisma
-  seed.ts
-public/
-  images/
-```
-
-## Cau hinh moi truong
-
-Sao chep file mau:
+Sao chép file mẫu:
 
 ```bash
 cp .env.example .env
 ```
 
-Cap nhat bien moi truong bang connection string PostgreSQL cua Supabase:
-
-- `DATABASE_URL`: dung cho Prisma Client khi ung dung chay.
-- `DIRECT_URL`: dung cho Prisma migration va `prisma db push`.
-- `JWT_SECRET`: dung cho JWT hoac signed cookie session o buoc dang nhap.
-
-Vi du:
+Cập nhật biến môi trường:
 
 ```env
 DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&schema=public"
@@ -191,9 +127,7 @@ JWT_SECRET="replace-with-a-long-random-secret"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-## Cai dat va chay project
-
-Cai dependency:
+Cài dependency:
 
 ```bash
 npm install
@@ -205,33 +139,31 @@ Generate Prisma Client:
 npm run prisma:generate
 ```
 
-Day schema len Supabase PostgreSQL:
+Đẩy schema lên Supabase PostgreSQL:
 
 ```bash
 npm run prisma:push
 ```
 
-Seed du lieu mau:
+Seed dữ liệu mẫu:
 
 ```bash
 npm run db:seed
 ```
 
-Chay dev server:
+Chạy dev server:
 
 ```bash
 npm run dev
 ```
 
-Mo trinh duyet tai:
+Mở trình duyệt tại:
 
 ```text
 http://localhost:3000
 ```
 
-## Tai khoan seed mau
-
-Mat khau da duoc hash bang bcrypt trong seed.
+## Tài khoản seed mẫu
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -239,39 +171,19 @@ Mat khau da duoc hash bang bcrypt trong seed.
 | STAFF | staff@gmail.com | 123456 |
 | CASHIER | cashier@gmail.com | 123456 |
 
-## Database models
+## Kịch bản demo báo cáo
 
-Prisma schema gom:
+1. Khách mở `/order/table/1`, chọn nhiều món và gửi đơn lần 1; hệ thống tự mở phiên bàn.
+2. Khách gửi thêm món lần 2 trên cùng bàn để chứng minh nhiều order được gom vào một phiên.
+3. Staff vào `/staff/orders`, bật chế độ bếp, xác nhận và chuyển trạng thái món đến `SERVED`.
+4. Cashier vào `/cashier/orders`, thanh toán phiên bàn và tạo hóa đơn.
+5. Mở `/invoices/[id]/print` để in phiếu thanh toán nhỏ.
+6. Quay lại admin kiểm tra hóa đơn, dashboard và trạng thái bàn sau thanh toán.
 
-- `User`
-- `Category`
-- `Product`
-- `CafeTable`
-- `Order`
-- `OrderItem`
-- `Invoice`
+## Điểm nhấn khi thuyết trình
 
-Enums:
-
-- `Role`: `ADMIN`, `STAFF`, `CASHIER`
-- `ProductStatus`: `AVAILABLE`, `UNAVAILABLE`
-- `TableStatus`: `AVAILABLE`, `OCCUPIED`, `RESERVED`
-- `OrderStatus`: `PENDING`, `CONFIRMED`, `PREPARING`, `SERVED`, `PAID`, `CANCELLED`
-- `PaymentMethod`: `CASH`, `BANK_TRANSFER`, `QR_PAYMENT`
-
-Tien duoc luu bang `Int`, khong dung `Float`. Vi du `25000` nghia la 25.000 VND. Backend se tu tinh `totalAmount` khi tao order o cac buoc tiep theo.
-
-Schema hien dung `generator client` voi `provider = "prisma-client-js"` va datasource PostgreSQL co `url = env("DATABASE_URL")`, `directUrl = env("DIRECT_URL")`.
-
-## Lo trinh phat trien
-
-1. Tao project, Prisma schema, seed, README va trang rong.
-2. Lam dang nhap va phan quyen.
-3. Lam admin layout.
-4. Lam CRUD danh muc.
-5. Lam CRUD san pham.
-6. Lam quan ly ban va QR.
-7. Lam trang khach hang goi mon.
-8. Lam trang nhan vien xu ly don.
-9. Lam trang thu ngan thanh toan.
-10. Lam dashboard thong ke.
+- QR order không chỉ là tạo đơn, mà có phiên bàn để chống khách giữ link rồi đặt từ xa sau khi rời quán.
+- Bill được gom theo bàn/phiên, phù hợp thực tế khách gọi thêm món nhiều lần.
+- Bếp có màn hình ưu tiên theo thời gian chờ, giúp nhân viên biết đơn nào cần xử lý trước.
+- Thanh toán có kiểm tra trạng thái phiên bàn, tránh lỗi trả bàn về trống khi vẫn còn đơn mở.
+- Admin có đủ CRUD dữ liệu nền: danh mục, món, bàn, nhân viên, đơn hàng, hóa đơn và dashboard.

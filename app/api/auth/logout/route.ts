@@ -3,7 +3,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth";
 
 export async function POST() {
   const response = NextResponse.json({
-    message: "Dang xuat thanh cong.",
+    message: "Đăng xuất thành công.",
   });
 
   response.cookies.set({

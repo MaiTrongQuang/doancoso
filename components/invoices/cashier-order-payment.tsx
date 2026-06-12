@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -15,6 +16,7 @@ type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
 
 type CashierOrder = {
   id: number;
+  sessionId: number | null;
   status: string;
   totalAmount: number;
   note: string | null;
@@ -36,6 +38,7 @@ type CashierOrder = {
 type Invoice = {
   id: number;
   orderId: number;
+  sessionId: number | null;
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paidAt: string;
@@ -45,6 +48,39 @@ type Invoice = {
 type InvoiceResponse = {
   message?: string;
   data?: Invoice;
+};
+
+type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED";
+
+type SepayPayment = {
+  id: number;
+  orderId: number;
+  provider: "SEPAY";
+  status: PaymentStatus;
+  amount: number;
+  transferCode: string;
+  qrUrl: string | null;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SepayCreateResponse = {
+  message?: string;
+  data?: SepayPayment;
+  qrUrl?: string | null;
+};
+
+type PaymentPollingResponse = {
+  message?: string;
+  data?: {
+    orderStatus: string;
+    paymentStatus: PaymentStatus | null;
+    payment: SepayPayment | null;
+  };
 };
 
 const paymentOptions: Array<{
@@ -64,8 +100,8 @@ const paymentOptions: Array<{
   },
   {
     value: "QR_PAYMENT",
-    label: "QR Payment",
-    description: "Mô phỏng thanh toán bằng mã QR.",
+    label: "QR ngân hàng",
+    description: "Tạo mã QR SePay và tự xác nhận qua webhook ngân hàng.",
   },
 ];
 
@@ -98,10 +134,27 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function getPayButtonLabel({
+  isPaying,
+  paymentMethod,
+}: {
+  isPaying: boolean;
+  paymentMethod: PaymentMethod;
+}) {
+  if (paymentMethod === "QR_PAYMENT") {
+    return isPaying ? "Đang tạo QR..." : "Thanh toán QR ngân hàng";
+  }
+
+  return isPaying ? "Đang thanh toán..." : "Thanh toán";
+}
+
 async function fetchServedOrders() {
-  const response = await fetch("/api/orders?statuses=SERVED", {
-    cache: "no-store",
-  });
+  const response = await fetch(
+    "/api/orders?statuses=SERVED&groupBySession=true",
+    {
+      cache: "no-store",
+    },
+  );
   const result = await response.json();
 
   if (!response.ok) {
@@ -109,6 +162,84 @@ async function fetchServedOrders() {
   }
 
   return (result.data ?? []) as CashierOrder[];
+}
+
+function SepayQrPanel({ payment }: { payment: SepayPayment }) {
+  return (
+    <div className="rounded-2xl border border-[#d8cdbc] bg-[#fffdf9] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-[#1f2933]">
+            Quét QR ngân hàng
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#625b50]">
+            Hệ thống đang chờ SePay gửi webhook xác nhận giao dịch.
+          </p>
+        </div>
+        <span className="pos-badge bg-amber-50 text-amber-700">
+          {payment.status === "PENDING" ? "Đang chờ" : payment.status}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-[#eadfce] bg-white p-3">
+          {payment.qrUrl ? (
+            <Image
+              alt={`QR thanh toán ${payment.transferCode}`}
+              className="object-contain"
+              height={196}
+              src={payment.qrUrl}
+              width={196}
+            />
+          ) : (
+            <p className="text-center text-sm text-[#625b50]">
+              Chưa có ảnh QR.
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-3 text-sm">
+          <div className="rounded-2xl bg-[#f8f3ea] p-3">
+            <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#6d645a]">
+              Nội dung chuyển khoản
+            </p>
+            <p className="mt-1 break-all text-lg font-black text-[#172027]">
+              {payment.transferCode}
+            </p>
+          </div>
+
+          <div className="grid gap-2 rounded-2xl border border-[#eadfce] p-3">
+            <div className="flex justify-between gap-3">
+              <span className="text-[#625b50]">Ngân hàng</span>
+              <span className="font-semibold text-[#1f2933]">
+                {payment.bankCode}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-[#625b50]">Số tài khoản</span>
+              <span className="font-semibold text-[#1f2933]">
+                {payment.accountNumber}
+              </span>
+            </div>
+            {payment.accountName ? (
+              <div className="flex justify-between gap-3">
+                <span className="text-[#625b50]">Chủ tài khoản</span>
+                <span className="text-right font-semibold text-[#1f2933]">
+                  {payment.accountName}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-3">
+              <span className="text-[#625b50]">Số tiền</span>
+              <span className="font-bold text-[#2f5d50]">
+                {formatMoney(payment.amount)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InvoicePreview({ invoice }: { invoice: Invoice }) {
@@ -161,6 +292,13 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
           {formatMoney(invoice.totalAmount)}
         </span>
       </div>
+      <a
+        className="pos-button-primary mt-4 w-full bg-emerald-700 hover:bg-emerald-800"
+        href={`/invoices/${invoice.id}/print`}
+        target="_blank"
+      >
+        Xuất / in hóa đơn
+      </a>
     </section>
   );
 }
@@ -170,6 +308,7 @@ export function CashierOrderPayment() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [paidInvoice, setPaidInvoice] = useState<Invoice | null>(null);
+  const [qrPayment, setQrPayment] = useState<SepayPayment | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -179,6 +318,8 @@ export function CashierOrderPayment() {
     () => orders.find((order) => order.id === selectedOrderId) ?? null,
     [orders, selectedOrderId],
   );
+  const pollingOrderId =
+    qrPayment?.status === "PENDING" ? qrPayment.orderId : null;
 
   async function loadOrders() {
     setIsLoading(true);
@@ -229,9 +370,120 @@ export function CashierOrderPayment() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!pollingOrderId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function pollPaymentStatus() {
+      try {
+        const response = await fetch(`/api/payments/order/${pollingOrderId}`, {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as PaymentPollingResponse;
+
+        if (!response.ok || !result.data) {
+          throw new Error(
+            getErrorMessage(result, "Không thể kiểm tra trạng thái thanh toán."),
+          );
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (result.data.payment) {
+          setQrPayment(result.data.payment);
+        }
+
+        if (
+          result.data.paymentStatus === "PAID" ||
+          result.data.orderStatus === "PAID"
+        ) {
+          setMessage("Thanh toán QR thành công. Hóa đơn đã được tạo tự động.");
+          setQrPayment(null);
+          setPaidInvoice(null);
+          setSelectedOrderId(null);
+          const nextOrders = await fetchServedOrders();
+
+          if (isMounted) {
+            setOrders(nextOrders);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }
+      } catch (caughtError) {
+        if (isMounted) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Không thể kiểm tra trạng thái thanh toán.",
+          );
+        }
+      }
+    }
+
+    pollPaymentStatus();
+    const intervalId = window.setInterval(pollPaymentStatus, 3000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [pollingOrderId]);
+
+  async function handleCreateQrPayment() {
+    if (!selectedOrder) {
+      setError("Vui lòng chọn đơn cần thanh toán.");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setPaidInvoice(null);
+    setIsPaying(true);
+
+    try {
+      const response = await fetch("/api/payments/sepay/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+        }),
+      });
+      const result = (await response.json()) as SepayCreateResponse;
+
+      if (!response.ok || !result.data) {
+        throw new Error(getErrorMessage(result, "Không thể tạo mã QR SePay."));
+      }
+
+      setQrPayment(result.data);
+      setMessage(
+        result.message ??
+          "Đã tạo mã QR. Vui lòng chờ SePay xác nhận giao dịch.",
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể tạo mã QR SePay.",
+      );
+    } finally {
+      setIsPaying(false);
+    }
+  }
+
   async function handlePay() {
     if (!selectedOrder) {
       setError("Vui lòng chọn đơn cần thanh toán.");
+      return;
+    }
+
+    if (paymentMethod === "QR_PAYMENT") {
+      await handleCreateQrPayment();
       return;
     }
 
@@ -258,6 +510,7 @@ export function CashierOrderPayment() {
 
       setMessage(result.message ?? "Thanh toán thành công.");
       setPaidInvoice(result.data);
+      setQrPayment(null);
       setSelectedOrderId(null);
       await loadOrders();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -326,6 +579,7 @@ export function CashierOrderPayment() {
                   onClick={() => {
                     setSelectedOrderId(order.id);
                     setPaidInvoice(null);
+                    setQrPayment(null);
                     setMessage("");
                     setError("");
                   }}
@@ -334,7 +588,9 @@ export function CashierOrderPayment() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-[#625b50]">
-                        Đơn #{order.id}
+                        {order.sessionId
+                          ? `Phiên #${order.sessionId}`
+                          : `Đơn #${order.id}`}
                       </p>
                       <p className="mt-1 text-lg font-bold text-[#1f2933]">
                         {order.table.name}
@@ -372,7 +628,9 @@ export function CashierOrderPayment() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold text-[#6d645a]">
-                      Chi tiết đơn #{selectedOrder.id}
+                      {selectedOrder.sessionId
+                        ? `Chi tiết phiên #${selectedOrder.sessionId}`
+                        : `Chi tiết đơn #${selectedOrder.id}`}
                     </p>
                     <h2 className="mt-1 text-2xl font-black text-[#172027]">
                       {selectedOrder.table.name}
@@ -435,9 +693,12 @@ export function CashierOrderPayment() {
                     Phương thức thanh toán
                     <select
                       className="pos-input"
-                      onChange={(event) =>
-                        setPaymentMethod(event.target.value as PaymentMethod)
-                      }
+                      onChange={(event) => {
+                        setPaymentMethod(event.target.value as PaymentMethod);
+                        setQrPayment(null);
+                        setMessage("");
+                        setError("");
+                      }}
                       value={paymentMethod}
                     >
                       {paymentOptions.map((option) => (
@@ -470,21 +731,12 @@ export function CashierOrderPayment() {
                       onClick={handlePay}
                       type="button"
                     >
-                      {isPaying ? "Đang thanh toán..." : "Thanh toán"}
+                      {getPayButtonLabel({ isPaying, paymentMethod })}
                     </button>
                   </div>
                 </div>
 
-                {paymentMethod === "QR_PAYMENT" ? (
-                  <div className="rounded-2xl border border-[#d8cdbc] bg-[#f8f3ea] p-4">
-                    <p className="text-sm font-bold text-[#1f2933]">
-                      QR Payment mô phỏng
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-[#625b50]">
-                      Khi demo, thu ngân chỉ cần chọn QR Payment và bấm thanh toán sau khi xác nhận khách đã quét mã.
-                    </p>
-                  </div>
-                ) : null}
+                {qrPayment ? <SepayQrPanel payment={qrPayment} /> : null}
               </div>
             )}
         </Panel>

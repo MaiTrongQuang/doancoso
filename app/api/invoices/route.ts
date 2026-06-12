@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { OrderStatus, PaymentMethod, TableStatus } from "@prisma/client";
+import {
+  DiningSessionStatus,
+  OrderStatus,
+  PaymentMethod,
+  TableStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getInvoiceDateFilterRange } from "@/lib/invoice-date-filter";
+import { getInvoiceListRows } from "@/lib/invoice-read-model";
 import { hasRole } from "@/lib/server-auth";
+import {
+  activeTableOrderStatuses,
+  canPayDiningSession,
+} from "@/lib/table-session-flow";
 
 const paymentMethods = new Set<string>(Object.values(PaymentMethod));
 
@@ -21,68 +32,72 @@ function normalizePaymentMethod(value: unknown) {
     : null;
 }
 
-function getVietnamDateRange(value: string | null) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  const start = new Date(`${value}T00:00:00.000+07:00`);
-
-  if (Number.isNaN(start.getTime())) {
-    return null;
-  }
-
-  return {
-    start,
-    end: new Date(start.getTime() + 24 * 60 * 60 * 1000),
+type InvoiceOrder = {
+  id: number;
+  status: OrderStatus;
+  note: string | null;
+  totalAmount: number;
+  createdAt: Date;
+  table: {
+    id: number;
+    name: string;
   };
-}
+  items: Array<{
+    id: number;
+    productId: number;
+    quantity: number;
+    price: number;
+    note: string | null;
+    product: {
+      id: number;
+      name: string;
+    };
+  }>;
+};
 
 function serializeInvoice(invoice: {
   id: number;
   orderId: number;
+  sessionId: number | null;
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paidAt: Date;
   createdAt: Date;
-  order: {
+  order: InvoiceOrder;
+  session: {
     id: number;
-    status: OrderStatus;
-    note: string | null;
-    totalAmount: number;
-    createdAt: Date;
-    table: {
-      id: number;
-      name: string;
-    };
-    items: Array<{
-      id: number;
-      productId: number;
-      quantity: number;
-      price: number;
-      note: string | null;
-      product: {
-        id: number;
-        name: string;
-      };
-    }>;
-  };
+    orders: InvoiceOrder[];
+  } | null;
 }) {
+  const billOrders =
+    invoice.session?.orders.filter(
+      (order) => order.status !== OrderStatus.CANCELLED,
+    ) ?? [invoice.order];
+  const sortedOrders = [...billOrders].sort(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+  const [firstOrder] = sortedOrders;
+
+  if (!firstOrder) {
+    throw new Error("Cannot serialize invoice without billable orders.");
+  }
+
   return {
     id: invoice.id,
     orderId: invoice.orderId,
+    sessionId: invoice.sessionId,
     totalAmount: invoice.totalAmount,
     paymentMethod: invoice.paymentMethod,
     paidAt: invoice.paidAt.toISOString(),
     createdAt: invoice.createdAt.toISOString(),
     order: {
-      id: invoice.order.id,
-      status: invoice.order.status,
-      note: invoice.order.note,
-      totalAmount: invoice.order.totalAmount,
-      createdAt: invoice.order.createdAt.toISOString(),
-      table: invoice.order.table,
-      items: invoice.order.items.map((item) => ({
+      id: firstOrder.id,
+      status: firstOrder.status,
+      note: sortedOrders.map((order) => order.note).find(Boolean) ?? null,
+      totalAmount: invoice.totalAmount,
+      createdAt: firstOrder.createdAt.toISOString(),
+      table: firstOrder.table,
+      items: sortedOrders.flatMap((order) => order.items).map((item) => ({
         id: item.id,
         productId: item.productId,
         productName: item.product.name,
@@ -118,6 +133,36 @@ const invoiceInclude = {
       },
     },
   },
+  session: {
+    include: {
+      orders: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          table: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          items: {
+            orderBy: {
+              id: "asc",
+            },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 } as const;
 
 export async function GET(request: Request) {
@@ -126,33 +171,34 @@ export async function GET(request: Request) {
 
     if (!canReadInvoices) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem hoa don." },
+        { message: "Bạn không có quyền xem hóa đơn." },
         { status: 403 },
       );
     }
 
     const { searchParams } = new URL(request.url);
-    const dateRange = getVietnamDateRange(searchParams.get("date"));
-
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        ...(dateRange
-          ? {
-              paidAt: {
-                gte: dateRange.start,
-                lt: dateRange.end,
-              },
-            }
-          : {}),
-      },
-      orderBy: {
-        paidAt: "desc",
-      },
-      include: invoiceInclude,
+    const dateFilter = getInvoiceDateFilterRange({
+      date: searchParams.get("date"),
+      dateFrom: searchParams.get("dateFrom"),
+      dateTo: searchParams.get("dateTo"),
     });
 
+    if (!dateFilter.ok) {
+      return NextResponse.json(
+        { message: dateFilter.message },
+        { status: 400 },
+      );
+    }
+
+    const paidAtFilter = dateFilter.range
+      ? {
+          ...(dateFilter.range.start ? { gte: dateFilter.range.start } : {}),
+          ...(dateFilter.range.end ? { lt: dateFilter.range.end } : {}),
+        }
+      : null;
+
     return NextResponse.json({
-      data: invoices.map(serializeInvoice),
+      data: await getInvoiceListRows(paidAtFilter),
     });
   } catch (error) {
     console.error(error);
@@ -170,7 +216,7 @@ export async function POST(request: Request) {
 
     if (!canCreateInvoice) {
       return NextResponse.json(
-        { message: "Ban khong co quyen thanh toan hoa don." },
+        { message: "Bạn không có quyền thanh toán hóa đơn." },
         { status: 403 },
       );
     }
@@ -181,14 +227,14 @@ export async function POST(request: Request) {
 
     if (!orderId) {
       return NextResponse.json(
-        { message: "Ma don hang khong hop le." },
+        { message: "Mã đơn hàng không hợp lệ." },
         { status: 400 },
       );
     }
 
     if (!paymentMethod) {
       return NextResponse.json(
-        { message: "Phuong thuc thanh toan khong hop le." },
+        { message: "Phương thức thanh toán không hợp lệ." },
         { status: 400 },
       );
     }
@@ -199,60 +245,105 @@ export async function POST(request: Request) {
       },
       include: {
         invoice: true,
+        session: {
+          include: {
+            invoice: true,
+            orders: {
+              select: {
+                id: true,
+                status: true,
+                totalAmount: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!order) {
       return NextResponse.json(
-        { message: "Don hang khong ton tai." },
+        { message: "Đơn hàng không tồn tại." },
         { status: 404 },
       );
     }
 
-    if (order.invoice) {
+    if (order.invoice || order.session?.invoice) {
       return NextResponse.json(
-        { message: "Don hang nay da co hoa don." },
+        { message: "Đơn hàng hoặc phiên bàn này đã có hóa đơn." },
         { status: 409 },
       );
     }
 
-    if (order.status !== OrderStatus.SERVED) {
+    const billOrders = order.session?.orders ?? [order];
+    const billOrderStatuses = billOrders.map((billOrder) => billOrder.status);
+
+    if (!canPayDiningSession(billOrderStatuses)) {
       return NextResponse.json(
-        { message: "Chi co the thanh toan don hang da phuc vu." },
+        {
+          message:
+            "Chỉ có thể thanh toán khi tất cả đơn trong phiên bàn đã được phục vụ.",
+        },
         { status: 400 },
       );
     }
 
+    const payableOrderIds = billOrders
+      .filter((billOrder) => billOrder.status === OrderStatus.SERVED)
+      .map((billOrder) => billOrder.id);
+    const totalAmount = billOrders
+      .filter((billOrder) => billOrder.status === OrderStatus.SERVED)
+      .reduce((total, billOrder) => total + billOrder.totalAmount, 0);
+
     const invoice = await prisma.$transaction(async (tx) => {
-      await tx.order.update({
+      await tx.order.updateMany({
         where: {
-          id: orderId,
+          id: {
+            in: payableOrderIds,
+          },
         },
         data: {
           status: OrderStatus.PAID,
         },
       });
 
-      await tx.cafeTable.update({
+      if (order.sessionId) {
+        await tx.diningSession.update({
+          where: {
+            id: order.sessionId,
+          },
+          data: {
+            status: DiningSessionStatus.CLOSED,
+            closedAt: new Date(),
+          },
+        });
+      }
+
+      const remainingActiveOrders = await tx.order.count({
         where: {
-          id: order.tableId,
-        },
-        data: {
-          status: TableStatus.AVAILABLE,
+          tableId: order.tableId,
+          status: {
+            in: [...activeTableOrderStatuses],
+          },
         },
       });
 
-      const createdInvoice = await tx.invoice.create({
+      if (remainingActiveOrders === 0) {
+        await tx.cafeTable.update({
+          where: {
+            id: order.tableId,
+          },
+          data: {
+            status: TableStatus.AVAILABLE,
+          },
+        });
+      }
+
+      return tx.invoice.create({
         data: {
           orderId,
-          totalAmount: order.totalAmount,
+          sessionId: order.sessionId,
+          totalAmount,
           paymentMethod,
-        },
-      });
-
-      return tx.invoice.findUniqueOrThrow({
-        where: {
-          id: createdInvoice.id,
         },
         include: invoiceInclude,
       });
@@ -260,7 +351,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Thanh toan thanh cong.",
+        message: "Thanh toán thành công.",
         data: serializeInvoice(invoice),
       },
       { status: 201 },

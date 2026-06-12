@@ -67,7 +67,7 @@ type DashboardSummary = {
 
 const statusLabel: Record<string, string> = {
   PENDING: "Đơn mới",
-  CONFIRMED: "Bếp đã nhận",
+  CONFIRMED: "Đã xác nhận",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   CountPill,
@@ -10,8 +10,13 @@ import {
   PanelHeader,
 } from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
+import {
+  getProductStatusLabel,
+  productStatusOptions,
+  type ProductStatusValue,
+} from "@/lib/product-status";
 
-type ProductStatus = "AVAILABLE" | "UNAVAILABLE";
+type ProductStatus = ProductStatusValue;
 
 type Category = {
   id: number;
@@ -44,6 +49,13 @@ type ProductForm = {
   categoryId: string;
 };
 
+type ImageUploadResponse = {
+  message?: string;
+  data?: {
+    imageUrl?: string;
+  };
+};
+
 const emptyForm: ProductForm = {
   name: "",
   description: "",
@@ -51,11 +63,6 @@ const emptyForm: ProductForm = {
   imageUrl: "",
   status: "AVAILABLE",
   categoryId: "",
-};
-
-const statusLabel: Record<ProductStatus, string> = {
-  AVAILABLE: "AVAILABLE",
-  UNAVAILABLE: "UNAVAILABLE",
 };
 
 function toSearchText(value: string) {
@@ -113,6 +120,8 @@ export function ProductManager() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageInputKey, setImageInputKey] = useState(0);
   const [deletingProductId, setDeletingProductId] = useState<number | null>(
     null,
   );
@@ -195,6 +204,7 @@ export function ProductManager() {
   function resetForm() {
     setForm(emptyForm);
     setEditingProduct(null);
+    setImageInputKey((current) => current + 1);
   }
 
   function startEdit(product: Product) {
@@ -209,6 +219,48 @@ export function ProductManager() {
     });
     setMessage("");
     setError("");
+  }
+
+  async function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setIsUploadingImage(true);
+
+    try {
+      const uploadForm = new FormData();
+      uploadForm.append("image", file);
+
+      const response = await fetch("/api/uploads/product-image", {
+        method: "POST",
+        body: uploadForm,
+      });
+      const result = (await response.json()) as ImageUploadResponse;
+      const imageUrl = result.data?.imageUrl;
+
+      if (!response.ok || !imageUrl) {
+        throw new Error(getErrorMessage(result, "Không thể tải ảnh sản phẩm."));
+      }
+
+      setForm((current) => ({
+        ...current,
+        imageUrl,
+      }));
+      setMessage(result.message ?? "Tải ảnh lên thành công.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể tải ảnh sản phẩm.",
+      );
+    } finally {
+      setIsUploadingImage(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -333,8 +385,8 @@ export function ProductManager() {
 
       setMessage(
         nextStatus === "AVAILABLE"
-          ? "Đã bật lại trạng thái đang bán."
-          : "Đã tạm ngừng bán sản phẩm.",
+          ? "Đã hiển thị sản phẩm trên menu."
+          : "Đã ẩn sản phẩm khỏi menu.",
       );
       await loadProducts();
     } catch (caughtError) {
@@ -353,7 +405,7 @@ export function ProductManager() {
       <PageHero
         eyebrow="Admin"
         title="Quản lý sản phẩm"
-        description="Thêm, sửa, xóa món trong menu và quản lý trạng thái đang bán."
+        description="Thêm, sửa, xóa món trong menu và quản lý trạng thái hiển thị."
       />
 
       {message ? <Alert tone="success">{message}</Alert> : null}
@@ -439,13 +491,24 @@ export function ProductManager() {
                 }
                 value={form.status}
               >
-                <option value="AVAILABLE">AVAILABLE</option>
-                <option value="UNAVAILABLE">UNAVAILABLE</option>
+                {productStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
 
-            <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
+            <div className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Ảnh sản phẩm
+              {form.imageUrl ? (
+                <div
+                  aria-label="Xem trước ảnh sản phẩm"
+                  className="h-32 rounded-md border border-[#ded5c8] bg-[#f7f7f2] bg-cover bg-center"
+                  role="img"
+                  style={{ backgroundImage: `url(${form.imageUrl})` }}
+                />
+              ) : null}
               <input
                 className="pos-input"
                 onChange={(event) =>
@@ -454,11 +517,27 @@ export function ProductManager() {
                     imageUrl: event.target.value,
                   }))
                 }
-                placeholder="https://..."
-                type="url"
+                placeholder="Dán link ảnh hoặc chọn file bên dưới"
+                type="text"
                 value={form.imageUrl}
               />
-            </label>
+              <input
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="pos-input file:mr-3 file:rounded-md file:border-0 file:bg-[#2f5d50] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                disabled={isUploadingImage}
+                key={imageInputKey}
+                onChange={handleImageUpload}
+                type="file"
+              />
+              <p className="text-xs font-normal text-[#6b6254]">
+                Hỗ trợ JPG, PNG, WEBP, GIF. Dung lượng tối đa 3MB.
+              </p>
+              {isUploadingImage ? (
+                <p className="text-xs font-semibold text-[#2f5d50]">
+                  Đang tải ảnh lên...
+                </p>
+              ) : null}
+            </div>
 
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
               Mô tả
@@ -478,10 +557,14 @@ export function ProductManager() {
             <div className="mt-5 flex flex-wrap gap-2">
               <button
                 className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={isSubmitting || categories.length === 0}
+                disabled={
+                  isSubmitting || isUploadingImage || categories.length === 0
+                }
                 type="submit"
               >
-                {isSubmitting
+                {isUploadingImage
+                  ? "Đang tải ảnh..."
+                  : isSubmitting
                   ? "Đang lưu..."
                   : editingProduct
                     ? "Cập nhật"
@@ -556,9 +639,20 @@ export function ProductManager() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex min-w-0 gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#2f5d50] text-base font-black text-white">
-                        {product.name.slice(0, 1).toUpperCase()}
-                      </div>
+                      {product.imageUrl ? (
+                        <div
+                          aria-label={`Ảnh ${product.name}`}
+                          className="h-12 w-12 shrink-0 rounded-md border border-[#eadfce] bg-[#f7f7f2] bg-cover bg-center"
+                          role="img"
+                          style={{
+                            backgroundImage: `url(${product.imageUrl})`,
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#2f5d50] text-base font-black text-white">
+                          {product.name.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold uppercase tracking-wide text-[#6b6254]">
                           #{product.id} · {product.category.name}
@@ -575,7 +669,7 @@ export function ProductManager() {
                           : "shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600"
                       }
                     >
-                      {statusLabel[product.status]}
+                      {getProductStatusLabel(product.status)}
                     </span>
                   </div>
 
@@ -620,8 +714,8 @@ export function ProductManager() {
                       {updatingStatusId === product.id
                         ? "Đang đổi..."
                         : product.status === "AVAILABLE"
-                          ? "Tắt bán"
-                          : "Bật bán"}
+                          ? "Ẩn khỏi menu"
+                          : "Hiển thị lại"}
                     </button>
                     <button
                       className="rounded-md border border-[#2f5d50] px-3 py-2 text-sm font-semibold text-[#2f5d50] transition hover:bg-[#eff7f2]"

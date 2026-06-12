@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { menuCatalogCacheTag } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -98,6 +100,7 @@ export async function POST(request: Request) {
         description,
       },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json(
       {

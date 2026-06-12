@@ -10,6 +10,12 @@ import {
   PanelHeader,
 } from "@/components/ui";
 import { formatMoney } from "@/lib/format-money";
+import {
+  formatKitchenWaitTime,
+  getKitchenOrderUrgency,
+  sortKitchenOrdersByUrgency,
+} from "@/lib/kitchen-order-priority";
+import { applyUpdatedStaffOrder } from "@/lib/staff-order-queue";
 
 type StaffOrderStatus = "PENDING" | "CONFIRMED" | "PREPARING";
 type OrderStatus = StaffOrderStatus | "SERVED" | "PAID" | "CANCELLED";
@@ -35,12 +41,17 @@ type StaffOrder = {
   }>;
 };
 
+type OrderStatusResponse = {
+  message?: string;
+  data?: StaffOrder;
+};
+
 type OrderAction = {
   label: string;
   nextStatus: OrderStatus;
 };
 
-type StatusCardKey = "RECEIVED" | "PREPARING";
+type StatusCardKey = "NEW" | "CONFIRMED" | "PREPARING";
 
 const visibleStatuses: StaffOrderStatus[] = ["PENDING", "CONFIRMED", "PREPARING"];
 
@@ -50,9 +61,14 @@ const statusCards: Array<{
   statuses: StaffOrderStatus[];
 }> = [
   {
-    key: "RECEIVED",
-    label: "Bếp đã nhận",
-    statuses: ["PENDING", "CONFIRMED"],
+    key: "NEW",
+    label: "Đơn mới",
+    statuses: ["PENDING"],
+  },
+  {
+    key: "CONFIRMED",
+    label: "Đã xác nhận",
+    statuses: ["CONFIRMED"],
   },
   {
     key: "PREPARING",
@@ -62,27 +78,18 @@ const statusCards: Array<{
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "Bếp đã nhận",
-  CONFIRMED: "Bếp đã nhận",
+  PENDING: "Đơn mới",
+  CONFIRMED: "Đã xác nhận",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",
   CANCELLED: "Đã hủy",
 };
 
-const statusClassName: Record<OrderStatus, string> = {
-  PENDING: "bg-sky-50 text-sky-700",
-  CONFIRMED: "bg-sky-50 text-sky-700",
-  PREPARING: "bg-violet-50 text-violet-700",
-  SERVED: "bg-emerald-50 text-emerald-700",
-  PAID: "bg-stone-100 text-stone-700",
-  CANCELLED: "bg-red-50 text-red-700",
-};
-
 const primaryActionByStatus: Partial<Record<OrderStatus, OrderAction>> = {
   PENDING: {
-    label: "Bắt đầu chuẩn bị",
-    nextStatus: "PREPARING",
+    label: "Xác nhận đơn",
+    nextStatus: "CONFIRMED",
   },
   CONFIRMED: {
     label: "Bắt đầu chuẩn bị",
@@ -139,6 +146,8 @@ export function StaffOrderBoard() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [processingKey, setProcessingKey] = useState("");
+  const [isKitchenMode, setIsKitchenMode] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
   const orderCountByStatus = useMemo(() => {
     return statusCards.reduce<Record<StatusCardKey, number>>(
@@ -149,11 +158,17 @@ export function StaffOrderBoard() {
         return counts;
       },
       {
-        RECEIVED: 0,
+        NEW: 0,
+        CONFIRMED: 0,
         PREPARING: 0,
       },
     );
   }, [orders]);
+
+  const sortedOrders = useMemo(
+    () => sortKitchenOrdersByUrgency(orders, now),
+    [now, orders],
+  );
 
   async function loadOrders() {
     setIsLoading(true);
@@ -174,6 +189,7 @@ export function StaffOrderBoard() {
 
   useEffect(() => {
     let isMounted = true;
+    let isPolling = false;
 
     async function loadInitialOrders() {
       try {
@@ -199,6 +215,12 @@ export function StaffOrderBoard() {
 
     loadInitialOrders();
     const intervalId = window.setInterval(async () => {
+      if (isPolling) {
+        return;
+      }
+
+      isPolling = true;
+
       try {
         const nextOrders = await fetchStaffOrders();
 
@@ -213,6 +235,8 @@ export function StaffOrderBoard() {
               : "Không thể tải đơn hàng.",
           );
         }
+      } finally {
+        isPolling = false;
       }
     }, 5000);
 
@@ -220,6 +244,14 @@ export function StaffOrderBoard() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   async function updateOrderStatus(order: StaffOrder, nextStatus: OrderStatus) {
@@ -246,7 +278,7 @@ export function StaffOrderBoard() {
           status: nextStatus,
         }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as OrderStatusResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -255,7 +287,13 @@ export function StaffOrderBoard() {
       }
 
       setMessage(result.message ?? "Cập nhật trạng thái đơn thành công.");
-      await loadOrders();
+      if (result.data) {
+        setOrders((currentOrders) =>
+          applyUpdatedStaffOrder(currentOrders, result.data!, visibleStatuses),
+        );
+      } else {
+        await loadOrders();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -272,19 +310,32 @@ export function StaffOrderBoard() {
       <PageHero
         eyebrow="Staff"
         title="Bếp nhận đơn tức thì"
-        description="Đơn khách gửi sẽ tự vào màn hình bếp. Nhân viên tập trung vào món cần làm, chuyển trạng thái nhanh và không bỏ sót ghi chú."
+        description="Đơn khách gửi sẽ tự vào màn hình bếp. Nhân viên xác nhận đơn mới, bắt đầu chuẩn bị và chuyển trạng thái đã phục vụ."
         actions={
-          <button
-            className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isLoading}
-            onClick={loadOrders}
-            type="button"
-          >
-            Làm mới
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isLoading}
+              onClick={loadOrders}
+              type="button"
+            >
+              Làm mới
+            </button>
+            <button
+              className={
+                isKitchenMode
+                  ? "pos-button-primary"
+                  : "pos-button-secondary"
+              }
+              onClick={() => setIsKitchenMode((current) => !current)}
+              type="button"
+            >
+              {isKitchenMode ? "Thoát chế độ bếp" : "Chế độ bếp"}
+            </button>
+          </div>
         }
         meta={
-          <section className="grid gap-3 sm:grid-cols-2">
+          <section className="grid gap-3 sm:grid-cols-3">
             {statusCards.map((card) => (
               <div
                 className="rounded-2xl border border-[#eadfce] bg-white/78 p-4 shadow-sm"
@@ -301,7 +352,9 @@ export function StaffOrderBoard() {
                   </div>
                   <span
                     className={
-                      card.key === "RECEIVED"
+                      card.key === "NEW"
+                        ? "pos-badge bg-amber-50 text-amber-700"
+                        : card.key === "CONFIRMED"
                         ? "pos-badge bg-sky-50 text-sky-700"
                         : "pos-badge bg-violet-50 text-violet-700"
                     }
@@ -332,29 +385,34 @@ export function StaffOrderBoard() {
       <Panel className="overflow-hidden">
         <PanelHeader
           title="Hàng đợi bếp"
-          description="Ưu tiên các đơn mới nhất, kiểm tra ghi chú trước khi chuyển trạng thái."
+          description="Xác nhận đơn mới trước, sau đó bắt đầu chuẩn bị và chuyển sang đã phục vụ."
           aside={<CountPill>{orders.length} đơn</CountPill>}
         />
 
-        <section className="grid items-start gap-4 p-4 xl:grid-cols-2">
-          {orders.map((order) => {
+        <section
+          className={
+            isKitchenMode
+              ? "grid items-start gap-5 bg-[#172027] p-4 xl:grid-cols-2"
+              : "grid items-start gap-4 p-4 xl:grid-cols-2"
+          }
+        >
+          {sortedOrders.map((order) => {
             const primaryAction = primaryActionByStatus[order.status];
             const canCancel = visibleStatuses.includes(
               order.status as StaffOrderStatus,
             );
+            const urgency = getKitchenOrderUrgency(order.createdAt, now);
 
             return (
               <article
-                className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#eadfce] bg-white shadow-[0_14px_34px_rgba(31,36,40,0.06)]"
+                className={
+                  isKitchenMode
+                    ? "flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white text-[#172027] shadow-[0_18px_42px_rgba(0,0,0,0.24)]"
+                    : "flex h-full flex-col overflow-hidden rounded-[18px] border border-[#eadfce] bg-white shadow-[0_14px_34px_rgba(31,36,40,0.06)]"
+                }
                 key={order.id}
               >
-                <div
-                  className={
-                    order.status === "PREPARING"
-                      ? "h-1.5 bg-violet-500"
-                      : "h-1.5 bg-sky-500"
-                  }
-                />
+                <div className={`h-1.5 ${urgency.accentClassName}`} />
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -367,12 +425,40 @@ export function StaffOrderBoard() {
                       <p className="mt-1 text-sm font-semibold text-[#6d645a]">
                         {formatDateTime(order.createdAt)}
                       </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className={`pos-badge ${urgency.className}`}>
+                          Chờ {formatKitchenWaitTime(order.createdAt, now)}
+                        </span>
+                        <span
+                          className={`pos-badge ${
+                            order.status === "PREPARING"
+                              ? "bg-violet-50 text-violet-700"
+                              : order.status === "PENDING"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-sky-50 text-sky-700"
+                          }`}
+                        >
+                          {statusLabel[order.status]}
+                        </span>
+                        <span className={`pos-badge ${urgency.className}`}>
+                          {urgency.label}
+                        </span>
+                      </div>
                     </div>
-                    <span
-                      className={`pos-badge ${statusClassName[order.status]}`}
-                    >
-                      {statusLabel[order.status]}
-                    </span>
+                    <div className="rounded-2xl bg-[#f8f3ea] px-4 py-3 text-right">
+                      <p className="text-xs font-black uppercase tracking-[0.1em] text-[#6d645a]">
+                        Thời gian chờ
+                      </p>
+                      <p
+                        className={
+                          isKitchenMode
+                            ? "mt-1 text-3xl font-black text-[#172027]"
+                            : "mt-1 text-2xl font-black text-[#172027]"
+                        }
+                      >
+                        {formatKitchenWaitTime(order.createdAt, now)}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="mt-5 overflow-hidden rounded-2xl border border-[#eadfce] bg-[#fffdf9]">

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Tai khoan khong ton tai.", user: null },
+        { message: "Tài khoản không tồn tại.", user: null },
         { status: 401 },
       );
     }
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user });
   } catch {
     return NextResponse.json(
-      { message: "Phien dang nhap khong hop le.", user: null },
+      { message: "Phiên đăng nhập không hợp lệ.", user: null },
       { status: 401 },
     );
   }

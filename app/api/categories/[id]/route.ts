@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { menuCatalogCacheTag } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -68,7 +70,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!category) {
       return NextResponse.json(
-        { message: "Danh muc khong ton tai." },
+        { message: "Danh mục không tồn tại." },
         { status: 404 },
       );
     }
@@ -99,6 +101,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
         description,
       },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Cập nhật danh mục thành công.",
@@ -148,7 +151,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!category) {
       return NextResponse.json(
-        { message: "Danh muc khong ton tai." },
+        { message: "Danh mục không tồn tại." },
         { status: 404 },
       );
     }
@@ -166,6 +169,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     await prisma.category.delete({
       where: { id },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Xóa danh mục thành công.",

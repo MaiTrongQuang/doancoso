@@ -60,7 +60,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem nguoi dung." },
+        { message: "Bạn không có quyền xem người dùng." },
         { status: 403 },
       );
     }
@@ -70,7 +70,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!id) {
       return NextResponse.json(
-        { message: "Ma nguoi dung khong hop le." },
+        { message: "Mã người dùng không hợp lệ." },
         { status: 400 },
       );
     }
@@ -89,7 +89,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Nguoi dung khong ton tai." },
+        { message: "Người dùng không tồn tại." },
         { status: 404 },
       );
     }
@@ -113,7 +113,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma nguoi dung khong hop le." },
+      { message: "Mã người dùng không hợp lệ." },
       { status: 400 },
     );
   }
@@ -123,7 +123,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen cap nhat nguoi dung." },
+        { message: "Bạn không có quyền cập nhật người dùng." },
         { status: 403 },
       );
     }
@@ -136,28 +136,28 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!name) {
       return NextResponse.json(
-        { message: "Ten nguoi dung la bat buoc." },
+        { message: "Tên người dùng là bắt buộc." },
         { status: 400 },
       );
     }
 
     if (!emailPattern.test(email)) {
       return NextResponse.json(
-        { message: "Email khong hop le." },
+        { message: "Email không hợp lệ." },
         { status: 400 },
       );
     }
 
     if (password.length > 0 && password.length < 6) {
       return NextResponse.json(
-        { message: "Mat khau moi phai co it nhat 6 ky tu." },
+        { message: "Mật khẩu mới phải có ít nhất 6 ký tự." },
         { status: 400 },
       );
     }
 
     if (!role) {
       return NextResponse.json(
-        { message: "Vai tro nguoi dung khong hop le." },
+        { message: "Vai trò người dùng không hợp lệ." },
         { status: 400 },
       );
     }
@@ -186,21 +186,21 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Nguoi dung khong ton tai." },
+        { message: "Người dùng không tồn tại." },
         { status: 404 },
       );
     }
 
     if (duplicatedUser) {
       return NextResponse.json(
-        { message: "Email da duoc su dung." },
+        { message: "Email đã được sử dụng." },
         { status: 409 },
       );
     }
 
     if (user.role === Role.ADMIN && role !== Role.ADMIN && adminCount <= 1) {
       return NextResponse.json(
-        { message: "He thong can it nhat mot tai khoan admin." },
+        { message: "Hệ thống cần ít nhất một tài khoản admin." },
         { status: 409 },
       );
     }
@@ -228,7 +228,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({
-      message: "Cap nhat nguoi dung thanh cong.",
+      message: "Cập nhật người dùng thành công.",
       data: serializeUser(updatedUser),
     });
   } catch (error) {
@@ -247,7 +247,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma nguoi dung khong hop le." },
+      { message: "Mã người dùng không hợp lệ." },
       { status: 400 },
     );
   }
@@ -257,14 +257,14 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!session || session.role !== Role.ADMIN) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xoa nguoi dung." },
+        { message: "Bạn không có quyền xóa người dùng." },
         { status: 403 },
       );
     }
 
     if (session.userId === id) {
       return NextResponse.json(
-        { message: "Khong the xoa tai khoan dang dang nhap." },
+        { message: "Không thể xóa tài khoản đang đăng nhập." },
         { status: 409 },
       );
     }
@@ -275,7 +275,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Nguoi dung khong ton tai." },
+        { message: "Người dùng không tồn tại." },
         { status: 404 },
       );
     }
@@ -289,7 +289,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
       if (adminCount <= 1) {
         return NextResponse.json(
-          { message: "He thong can it nhat mot tai khoan admin." },
+          { message: "Hệ thống cần ít nhất một tài khoản admin." },
           { status: 409 },
         );
       }
@@ -300,7 +300,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({
-      message: "Xoa nguoi dung thanh cong.",
+      message: "Xóa người dùng thành công.",
     });
   } catch (error) {
     console.error(error);

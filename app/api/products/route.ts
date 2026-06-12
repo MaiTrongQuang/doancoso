@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { ProductStatus } from "@prisma/client";
+import { menuCatalogCacheTag } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -163,7 +165,7 @@ export async function POST(request: Request) {
 
     if (!category) {
       return NextResponse.json(
-        { message: "Danh muc khong ton tai." },
+        { message: "Danh mục không tồn tại." },
         { status: 404 },
       );
     }
@@ -193,6 +195,7 @@ export async function POST(request: Request) {
         },
       },
     });
+    revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json(
       {

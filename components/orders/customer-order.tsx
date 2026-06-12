@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCategoryContextIds } from "./customer-order-navigation";
 import { formatMoney } from "@/lib/format-money";
 
@@ -22,6 +22,7 @@ type CustomerCategory = {
 type CustomerTable = {
   id: number;
   name: string;
+  activeSessionId: number | null;
 };
 
 type CartItem = {
@@ -53,7 +54,7 @@ type MenuVisual = {
 const allCategory = "ALL";
 const autumnMenuImage = "/images/menu/autumn-special-menu.png";
 const successMessage =
-  "Đã gửi đơn thành công. Bếp đã nhận đơn và sẽ chuẩn bị theo thứ tự.";
+  "Đã gửi đơn thành công. Nhân viên sẽ xác nhận đơn trước khi chuẩn bị.";
 
 const heroImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAjyVtJO98Pc71lJgKUEoqc9BkFspIH7-HZLzEp-0UfDVS6DgMSg8aNv-b9UPs7RskpspwRT1DeEHpwCmYucBkGw0CBjaeEbTXT_vmY5xtRjHpx9LSzr0Lp6nt5AMBxFmSxk66XQesWDRiCgK036crU0eQNLHSIJav9fzbhpbPo_dtH21VpwLQ3HmFOTPJx9jPU2fttZ5kTGJP7PiWl9roxzwu43J4--Mk9waWVduOjCRQ_gqyyPSobfWfjtDJoJgnzG5nX3FYoO7Q";
@@ -190,10 +191,13 @@ const productDisplayOrder = [
   "Cacao nóng",
   "Set trà bánh mùa thu",
 ];
+const productRankByName = new Map(
+  productDisplayOrder.map((productName, index) => [productName, index]),
+);
 
 const statusLabel: Record<string, string> = {
   PENDING: "Đơn mới",
-  CONFIRMED: "Bếp đã nhận",
+  CONFIRMED: "Đã xác nhận",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",
@@ -293,9 +297,7 @@ function getCategoryRank(name: string) {
 }
 
 function getProductRank(name: string) {
-  const index = productDisplayOrder.findIndex((productName) => productName === name);
-
-  return index === -1 ? 999 : index;
+  return productRankByName.get(name) ?? 999;
 }
 
 function getCategoryVisual(name: string): MenuVisual {
@@ -414,7 +416,57 @@ function MenuImage({
   );
 }
 
-export function CustomerOrder({ table, categories }: CustomerOrderProps) {
+const ProductCard = memo(function ProductCard({
+  cartQuantity,
+  onAdd,
+  product,
+  visual,
+}: {
+  cartQuantity: number;
+  onAdd: (product: CustomerProduct) => void;
+  product: CustomerProduct;
+  visual: MenuVisual;
+}) {
+  return (
+    <article className="group flex min-h-[252px] flex-col overflow-hidden rounded-[24px] border border-[#dac3ad] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(46,48,52,0.12)]">
+      <MenuImage
+        className="aspect-square w-full bg-[#f3f3f8] transition duration-500 group-hover:scale-[1.04]"
+        image={visual.image}
+        label={getMenuImageLabel(product.name)}
+      />
+      <div className="flex flex-1 flex-col p-3">
+        <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-[#1a1c1f]">
+          {product.name}
+        </h3>
+        <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+          <div className="min-w-0">
+            <p className="text-base font-extrabold tabular-nums text-[#885200]">
+              {formatMoney(product.price)}
+            </p>
+            {cartQuantity > 0 ? (
+              <p className="mt-1 text-xs font-bold text-[#544433]">
+                Đã chọn x{cartQuantity}
+              </p>
+            ) : null}
+          </div>
+          <button
+            aria-label={`Thêm ${product.name}`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ff9f0a] text-2xl font-bold leading-none text-[#2b1700] shadow-sm transition hover:brightness-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#885200]"
+            onClick={() => onAdd(product)}
+            type="button"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+});
+
+export function CustomerOrder({
+  table,
+  categories,
+}: CustomerOrderProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(allCategory);
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [note, setNote] = useState("");
@@ -464,6 +516,24 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
     return new Map(orderedCategories.map((category) => [category.id, category]));
   }, [orderedCategories]);
 
+  const productVisualById = useMemo(() => {
+    const visuals = new Map<number, MenuVisual>();
+
+    for (const product of products) {
+      const productImage = product.imageUrl?.trim();
+      const categoryVisual = getCategoryVisual(
+        categoryById.get(product.categoryId)?.name ?? product.name,
+      );
+
+      visuals.set(product.id, {
+        ...categoryVisual,
+        image: productImage || getProductFallbackImage(product.name),
+      });
+    }
+
+    return visuals;
+  }, [categoryById, products]);
+
   const categoryOptions = useMemo(
     () => [
       {
@@ -480,10 +550,29 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
     [orderedCategories, products.length],
   );
 
+  const categoryOptionVisualById = useMemo(() => {
+    return new Map(
+      categoryOptions.map((option) => [
+        option.id,
+        option.id === allCategory
+          ? {
+              image: "/images/menu/all.svg",
+            }
+          : getCategoryVisual(option.name),
+      ]),
+    );
+  }, [categoryOptions]);
+
   const visibleCategories = useMemo(
     () => orderedCategories.filter((category) => category.products.length > 0),
     [orderedCategories],
   );
+
+  const categoryPositionById = useMemo(() => {
+    return new Map(
+      orderedCategories.map((category, index) => [category.id, index]),
+    );
+  }, [orderedCategories]);
 
   const contextCategoryIds = useMemo(
     () =>
@@ -514,15 +603,13 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
   );
 
   function getProductVisual(product: CustomerProduct): MenuVisual {
-    const productImage = product.imageUrl?.trim();
-    const categoryVisual = getCategoryVisual(
-      categoryById.get(product.categoryId)?.name ?? product.name,
+    return (
+      productVisualById.get(product.id) ?? {
+        image: getProductFallbackImage(product.name),
+        accent: "#885200",
+        soft: "#fff4e8",
+      }
     );
-
-    return {
-      ...categoryVisual,
-      image: productImage || getProductFallbackImage(product.name),
-    };
   }
 
   useEffect(() => {
@@ -629,7 +716,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function addToCart(product: CustomerProduct) {
+  const addToCart = useCallback((product: CustomerProduct) => {
     setMessage("");
     setError("");
     setCart((current) => {
@@ -644,7 +731,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
         },
       };
     });
-  }
+  }, []);
 
   function increaseQuantity(productId: number) {
     setCart((current) => {
@@ -735,6 +822,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
         },
         body: JSON.stringify({
           tableId: table.id,
+          sessionId: table.activeSessionId,
           note,
           items: cartItems.map((item) => ({
             productId: item.product.id,
@@ -764,49 +852,6 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  function renderProductCard(product: CustomerProduct) {
-    const visual = getProductVisual(product);
-    const cartItem = cart[product.id];
-
-    return (
-      <article
-        className="group flex min-h-[252px] flex-col overflow-hidden rounded-[24px] border border-[#dac3ad] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(46,48,52,0.12)]"
-        key={product.id}
-      >
-        <MenuImage
-          className="aspect-square w-full bg-[#f3f3f8] transition duration-500 group-hover:scale-[1.04]"
-          image={visual.image}
-          label={getMenuImageLabel(product.name)}
-        />
-        <div className="flex flex-1 flex-col p-3">
-          <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-[#1a1c1f]">
-            {product.name}
-          </h3>
-          <div className="mt-auto flex items-end justify-between gap-2 pt-3">
-            <div className="min-w-0">
-              <p className="text-base font-extrabold tabular-nums text-[#885200]">
-                {formatMoney(product.price)}
-              </p>
-              {cartItem ? (
-                <p className="mt-1 text-xs font-bold text-[#544433]">
-                  Đã chọn x{cartItem.quantity}
-                </p>
-              ) : null}
-            </div>
-            <button
-              aria-label={`Thêm ${product.name}`}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#ff9f0a] text-2xl font-bold leading-none text-[#2b1700] shadow-sm transition hover:brightness-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#885200]"
-              onClick={() => addToCart(product)}
-              type="button"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      </article>
-    );
   }
 
   function renderCartPanel() {
@@ -937,12 +982,23 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
             </p>
           </div>
           <button
-            className="min-h-12 rounded-lg bg-[#ff9f0a] px-6 text-sm font-extrabold text-[#2b1700] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-[#ffb868]"
+            aria-busy={isSubmitting}
+            className="min-h-12 rounded-lg bg-[#ff9f0a] px-6 text-sm font-extrabold text-[#2b1700] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70 focus:outline-none focus:ring-2 focus:ring-[#ffb868]"
             disabled={cartItems.length === 0 || isSubmitting}
             onClick={handleSubmit}
             type="button"
           >
-            {isSubmitting ? "Đang gửi..." : `Gửi đơn (${totalQuantity})`}
+            {isSubmitting ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 rounded-full border-2 border-[#2b1700]/30 border-t-[#2b1700] animate-spin"
+                />
+                Đang gửi đơn
+              </span>
+            ) : (
+              `Gửi đơn (${totalQuantity})`
+            )}
           </button>
         </div>
       </section>
@@ -1031,53 +1087,48 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
                 ›
               </div>
               <div className="flex snap-x gap-1.5 overflow-x-auto pb-0.5 pr-9 [scrollbar-width:thin]">
-              {categoryOptions.map((option) => {
-                const isActive = selectedCategory === option.id;
-                const isContextCategory = contextCategoryIdSet.has(option.id);
-                const optionVisual =
-                  option.id === allCategory
-                    ? {
-                        image: "/images/menu/all.svg",
-                      }
-                    : getCategoryVisual(option.name);
+                {categoryOptions.map((option) => {
+                  const isActive = selectedCategory === option.id;
+                  const isContextCategory = contextCategoryIdSet.has(option.id);
+                  const optionVisual = categoryOptionVisualById.get(option.id);
 
-                return (
-                  <button
-                    aria-current={isActive ? "true" : undefined}
-                    aria-pressed={isActive}
-                    className={`flex min-h-11 shrink-0 snap-center items-center gap-1.5 rounded-xl px-2 text-left transition active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#885200] ${
-                      isActive ? "max-w-[130px]" : "max-w-[112px]"
-                    } ${
-                      isActive
-                        ? "border border-[#ff9f0a] bg-[#ff9f0a] text-[#2b1700] shadow-[0_8px_18px_rgba(255,159,10,0.28)]"
-                        : "border border-[#dac3ad] bg-white text-[#544433] hover:bg-[#fff4e2]"
-                    } ${isContextCategory ? "opacity-100" : "opacity-80"}`}
-                    key={option.id}
-                    onClick={() => selectCategory(option.id)}
-                    ref={(node) => setCategoryButtonRef(option.id, node)}
-                    type="button"
-                  >
-                    <MenuImage
-                      backgroundSize="cover"
-                      className="h-5 w-5 shrink-0 rounded-full bg-[#fff4e2]"
-                      image={optionVisual.image}
-                      label={`Danh mục ${option.name}`}
-                    />
-                    <span
-                      className={`min-w-0 ${
-                        isActive ? "max-w-[90px]" : "max-w-[72px]"
-                      }`}
+                  return (
+                    <button
+                      aria-current={isActive ? "true" : undefined}
+                      aria-pressed={isActive}
+                      className={`flex min-h-11 shrink-0 snap-center items-center gap-1.5 rounded-xl px-2 text-left transition active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#885200] ${
+                        isActive ? "max-w-[130px]" : "max-w-[112px]"
+                      } ${
+                        isActive
+                          ? "border border-[#ff9f0a] bg-[#ff9f0a] text-[#2b1700] shadow-[0_8px_18px_rgba(255,159,10,0.28)]"
+                          : "border border-[#dac3ad] bg-white text-[#544433] hover:bg-[#fff4e2]"
+                      } ${isContextCategory ? "opacity-100" : "opacity-80"}`}
+                      key={option.id}
+                      onClick={() => selectCategory(option.id)}
+                      ref={(node) => setCategoryButtonRef(option.id, node)}
+                      type="button"
                     >
-                      <span className="block truncate text-xs font-extrabold leading-4">
-                        {option.name}
+                      <MenuImage
+                        backgroundSize="cover"
+                        className="h-5 w-5 shrink-0 rounded-full bg-[#fff4e2]"
+                        image={optionVisual?.image ?? autumnMenuImage}
+                        label={`Danh mục ${option.name}`}
+                      />
+                      <span
+                        className={`min-w-0 ${
+                          isActive ? "max-w-[90px]" : "max-w-[72px]"
+                        }`}
+                      >
+                        <span className="block truncate text-xs font-extrabold leading-4">
+                          {option.name}
+                        </span>
+                        <span className="block text-[10px] font-bold leading-3 opacity-75">
+                          {option.count} món
+                        </span>
                       </span>
-                      <span className="block text-[10px] font-bold leading-3 opacity-75">
-                        {option.count} món
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </nav>
@@ -1090,9 +1141,7 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
             ) : null}
 
             {visibleCategories.map((category) => {
-              const categoryIndex = orderedCategories.findIndex(
-                (item) => item.id === category.id,
-              );
+              const categoryIndex = categoryPositionById.get(category.id) ?? 0;
 
               return (
                 <section
@@ -1110,12 +1159,19 @@ export function CustomerOrder({ table, categories }: CustomerOrderProps) {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    {category.products.map((product) => renderProductCard(product))}
+                    {category.products.map((product) => (
+                      <ProductCard
+                        cartQuantity={cart[product.id]?.quantity ?? 0}
+                        key={product.id}
+                        onAdd={addToCart}
+                        product={product}
+                        visual={getProductVisual(product)}
+                      />
+                    ))}
                   </div>
                 </section>
               );
             })}
-
           </div>
         </div>
       </div>

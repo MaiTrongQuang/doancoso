@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { TableStatus } from "@prisma/client";
+import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -31,6 +31,15 @@ export async function GET() {
             orders: true,
           },
         },
+        sessions: {
+          where: {
+            status: DiningSessionStatus.OPEN,
+          },
+          take: 1,
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -39,6 +48,7 @@ export async function GET() {
         id: table.id,
         name: table.name,
         status: table.status,
+        activeSessionId: table.sessions[0]?.id ?? null,
         qrCodeUrl: table.qrCodeUrl,
         orderCount: table._count.orders,
         createdAt: table.createdAt.toISOString(),
@@ -61,7 +71,7 @@ export async function POST(request: Request) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen them ban." },
+        { message: "Bạn không có quyền thêm bàn." },
         { status: 403 },
       );
     }
@@ -72,7 +82,7 @@ export async function POST(request: Request) {
 
     if (!name) {
       return NextResponse.json(
-        { message: "Ten ban la bat buoc." },
+        { message: "Tên bàn là bắt buộc." },
         { status: 400 },
       );
     }
@@ -88,25 +98,36 @@ export async function POST(request: Request) {
 
     if (duplicatedTable) {
       return NextResponse.json(
-        { message: "Ten ban da ton tai." },
+        { message: "Tên bàn đã tồn tại." },
         { status: 409 },
       );
     }
 
-    const createdTable = await prisma.cafeTable.create({
-      data: {
-        name,
-        status,
-      },
-    });
+    const table = await prisma.$transaction(async (tx) => {
+      const createdTable = await tx.cafeTable.create({
+        data: {
+          name,
+          status,
+        },
+      });
 
-    const table = await prisma.cafeTable.update({
-      where: {
-        id: createdTable.id,
-      },
-      data: {
-        qrCodeUrl: `/order/table/${createdTable.id}`,
-      },
+      if (status === TableStatus.OCCUPIED) {
+        await tx.diningSession.create({
+          data: {
+            tableId: createdTable.id,
+            status: DiningSessionStatus.OPEN,
+          },
+        });
+      }
+
+      return tx.cafeTable.update({
+        where: {
+          id: createdTable.id,
+        },
+        data: {
+          qrCodeUrl: `/order/table/${createdTable.id}`,
+        },
+      });
     });
 
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import { ProductStatus } from "@prisma/client";
+import { DiningSessionStatus } from "@prisma/client";
 import { CustomerOrder } from "@/components/orders";
+import { getCustomerMenuCategories } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
 
 type CustomerOrderPageProps = {
@@ -32,47 +33,34 @@ export default async function CustomerOrderPage({
       select: {
         id: true,
         name: true,
-      },
-    }),
-    prisma.category.findMany({
-      orderBy: {
-        name: "asc",
-      },
-      include: {
-        products: {
+        sessions: {
           where: {
-            status: ProductStatus.AVAILABLE,
+            status: DiningSessionStatus.OPEN,
           },
-          orderBy: {
-            name: "asc",
-          },
+          take: 1,
           select: {
             id: true,
-            name: true,
-            description: true,
-            price: true,
-            imageUrl: true,
-            categoryId: true,
           },
         },
       },
     }),
+    getCustomerMenuCategories(),
   ]);
 
   if (!table) {
     notFound();
   }
 
+  const activeSessionId = table.sessions[0]?.id ?? null;
+
   return (
     <CustomerOrder
-      categories={categories
-        .filter((category) => category.products.length > 0)
-        .map((category) => ({
-          id: category.id,
-          name: category.name,
-          products: category.products,
-        }))}
-      table={table}
+      categories={categories}
+      table={{
+        id: table.id,
+        name: table.name,
+        activeSessionId,
+      }}
     />
   );
 }

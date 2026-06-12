@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { TableStatus } from "@prisma/client";
+import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
+import { activeTableOrderStatuses } from "@/lib/table-session-flow";
 
 type RouteContext = {
   params: Promise<{
@@ -36,7 +37,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma ban khong hop le." },
+      { message: "Mã bàn không hợp lệ." },
       { status: 400 },
     );
   }
@@ -46,7 +47,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen cap nhat ban." },
+        { message: "Bạn không có quyền cập nhật bàn." },
         { status: 403 },
       );
     }
@@ -57,7 +58,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!name) {
       return NextResponse.json(
-        { message: "Ten ban la bat buoc." },
+        { message: "Tên bàn là bắt buộc." },
         { status: 400 },
       );
     }
@@ -81,29 +82,83 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!table) {
       return NextResponse.json(
-        { message: "Ban khong ton tai." },
+        { message: "Bàn không tồn tại." },
         { status: 404 },
       );
     }
 
     if (duplicatedTable) {
       return NextResponse.json(
-        { message: "Ten ban da ton tai." },
+        { message: "Tên bàn đã tồn tại." },
         { status: 409 },
       );
     }
 
-    const updatedTable = await prisma.cafeTable.update({
-      where: { id },
-      data: {
-        name,
-        status,
-        qrCodeUrl: table.qrCodeUrl ?? `/order/table/${id}`,
-      },
+    if (status !== TableStatus.OCCUPIED) {
+      const activeOrderCount = await prisma.order.count({
+        where: {
+          tableId: id,
+          status: {
+            in: [...activeTableOrderStatuses],
+          },
+        },
+      });
+
+      if (activeOrderCount > 0) {
+        return NextResponse.json(
+          {
+            message:
+              "Bàn vẫn còn đơn đang mở nên chưa thể chuyển về trống hoặc đặt trước.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const updatedTable = await prisma.$transaction(async (tx) => {
+      if (status === TableStatus.OCCUPIED) {
+        const activeSession = await tx.diningSession.findFirst({
+          where: {
+            tableId: id,
+            status: DiningSessionStatus.OPEN,
+          },
+        });
+
+        if (!activeSession) {
+          await tx.diningSession.create({
+            data: {
+              tableId: id,
+              status: DiningSessionStatus.OPEN,
+            },
+          });
+        }
+      }
+
+      if (status !== TableStatus.OCCUPIED) {
+        await tx.diningSession.updateMany({
+          where: {
+            tableId: id,
+            status: DiningSessionStatus.OPEN,
+          },
+          data: {
+            status: DiningSessionStatus.CLOSED,
+            closedAt: new Date(),
+          },
+        });
+      }
+
+      return tx.cafeTable.update({
+        where: { id },
+        data: {
+          name,
+          status,
+          qrCodeUrl: table.qrCodeUrl ?? `/order/table/${id}`,
+        },
+      });
     });
 
     return NextResponse.json({
-      message: "Cap nhat ban thanh cong.",
+      message: "Cập nhật bàn thành công.",
       data: updatedTable,
     });
   } catch (error) {
@@ -122,7 +177,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma ban khong hop le." },
+      { message: "Mã bàn không hợp lệ." },
       { status: 400 },
     );
   }
@@ -132,7 +187,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xoa ban." },
+        { message: "Bạn không có quyền xóa bàn." },
         { status: 403 },
       );
     }
@@ -143,6 +198,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
         _count: {
           select: {
             orders: true,
+            sessions: true,
           },
         },
       },
@@ -150,15 +206,16 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     if (!table) {
       return NextResponse.json(
-        { message: "Ban khong ton tai." },
+        { message: "Bàn không tồn tại." },
         { status: 404 },
       );
     }
 
-    if (table._count.orders > 0) {
+    if (table._count.orders > 0 || table._count.sessions > 0) {
       return NextResponse.json(
         {
-          message: "Không thể xóa bàn vì bàn đã có đơn hàng trong hệ thống.",
+          message:
+            "Không thể xóa bàn vì bàn đã có đơn hàng hoặc phiên phục vụ trong hệ thống.",
         },
         { status: 409 },
       );

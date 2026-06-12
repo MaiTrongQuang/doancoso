@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { message: "Email va mat khau la bat buoc." },
+        { message: "Email và mật khẩu là bắt buộc." },
         { status: 400 },
       );
     }
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Email hoac mat khau khong dung." },
+        { message: "Email hoặc mật khẩu không đúng." },
         { status: 401 },
       );
     }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { message: "Email hoac mat khau khong dung." },
+        { message: "Email hoặc mật khẩu không đúng." },
         { status: 401 },
       );
     }

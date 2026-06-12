@@ -49,7 +49,7 @@ export async function GET() {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem danh sach nguoi dung." },
+        { message: "Bạn không có quyền xem danh sách người dùng." },
         { status: 403 },
       );
     }
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     if (!isAdmin) {
       return NextResponse.json(
-        { message: "Ban khong co quyen them nguoi dung." },
+        { message: "Bạn không có quyền thêm người dùng." },
         { status: 403 },
       );
     }
@@ -100,28 +100,28 @@ export async function POST(request: Request) {
 
     if (!name) {
       return NextResponse.json(
-        { message: "Ten nguoi dung la bat buoc." },
+        { message: "Tên người dùng là bắt buộc." },
         { status: 400 },
       );
     }
 
     if (!emailPattern.test(email)) {
       return NextResponse.json(
-        { message: "Email khong hop le." },
+        { message: "Email không hợp lệ." },
         { status: 400 },
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { message: "Mat khau phai co it nhat 6 ky tu." },
+        { message: "Mật khẩu phải có ít nhất 6 ký tự." },
         { status: 400 },
       );
     }
 
     if (!role) {
       return NextResponse.json(
-        { message: "Vai tro nguoi dung khong hop le." },
+        { message: "Vai trò người dùng không hợp lệ." },
         { status: 400 },
       );
     }
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
 
     if (duplicatedUser) {
       return NextResponse.json(
-        { message: "Email da duoc su dung." },
+        { message: "Email đã được sử dụng." },
         { status: 409 },
       );
     }
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Them nguoi dung thanh cong.",
+        message: "Thêm người dùng thành công.",
         data: serializeUser(user),
       },
       { status: 201 },

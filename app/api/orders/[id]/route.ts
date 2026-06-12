@@ -82,7 +82,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (!id) {
     return NextResponse.json(
-      { message: "Ma don hang khong hop le." },
+      { message: "Mã đơn hàng không hợp lệ." },
       { status: 400 },
     );
   }
@@ -92,7 +92,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!canReadOrder) {
       return NextResponse.json(
-        { message: "Ban khong co quyen xem don hang." },
+        { message: "Bạn không có quyền xem đơn hàng." },
         { status: 403 },
       );
     }
@@ -139,7 +139,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
     if (!order) {
       return NextResponse.json(
-        { message: "Don hang khong ton tai." },
+        { message: "Đơn hàng không tồn tại." },
         { status: 404 },
       );
     }
