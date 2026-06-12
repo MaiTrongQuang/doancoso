@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PaymentProvider, PaymentStatus } from "@prisma/client";
+import { getSepayQrDescription } from "@/lib/sepay-payment";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 
@@ -44,6 +45,10 @@ function serializePayment(payment: {
     bankCode: payment.bankCode,
     accountNumber: payment.accountNumber,
     accountName: payment.accountName,
+    transferDescription: getSepayQrDescription(
+      payment.qrUrl,
+      payment.transferCode,
+    ),
     paidAt: payment.paidAt?.toISOString() ?? null,
     createdAt: payment.createdAt.toISOString(),
     updatedAt: payment.updatedAt.toISOString(),

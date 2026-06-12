@@ -12,6 +12,18 @@ function normalizeTransferCodeSegment(value: string) {
   return value.replace(/[^0-9a-z]/gi, "").toUpperCase();
 }
 
+function normalizeDescriptionSegment(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\u0110/g, "D")
+    .replace(/\u0111/g, "d")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^0-9a-z]+/gi, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
 export function canConfirmSepayPayment(status: SepayPaymentLifecycleStatus) {
   return status === "PENDING";
 }
@@ -20,24 +32,59 @@ export function buildSepayTransferCode(orderId: number, suffix: string) {
   return `${TRANSFER_CODE_PREFIX}${orderId}${normalizeTransferCodeSegment(suffix)}`;
 }
 
+export function buildSepayTransferDescription({
+  orderId,
+  tableName,
+  transferCode,
+}: {
+  orderId: number;
+  tableName: string | null;
+  transferCode: string;
+}) {
+  const normalizedTableName =
+    tableName && normalizeDescriptionSegment(tableName);
+  const prefix = normalizedTableName
+    ? `THANH TOAN ${normalizedTableName}`
+    : `THANH TOAN DON HANG ${orderId}`;
+
+  return `${prefix} ${transferCode}`;
+}
+
 export function buildSepayQrUrl({
   accountNumber,
   amount,
   bankCode,
+  transferDescription,
   transferCode,
 }: {
   accountNumber: string;
   amount: number;
   bankCode: string;
+  transferDescription?: string;
   transferCode: string;
 }) {
   const url = new URL("https://qr.sepay.vn/img");
   url.searchParams.set("acc", accountNumber);
   url.searchParams.set("bank", bankCode);
   url.searchParams.set("amount", String(amount));
-  url.searchParams.set("des", transferCode);
+  url.searchParams.set("des", transferDescription ?? transferCode);
 
   return url.toString();
+}
+
+export function getSepayQrDescription(
+  qrUrl: string | null,
+  fallback: string,
+) {
+  if (!qrUrl) {
+    return fallback;
+  }
+
+  try {
+    return normalizeSepayText(new URL(qrUrl).searchParams.get("des")) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function normalizeSepayText(value: unknown) {

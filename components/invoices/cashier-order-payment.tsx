@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { removeSettledBillOrders } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
+import { getInvoicePrintHref } from "@/lib/invoice-links";
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
 
@@ -64,6 +65,7 @@ type SepayPayment = {
   bankCode: string;
   accountNumber: string;
   accountName: string | null;
+  transferDescription?: string;
   paidAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -235,7 +237,7 @@ function SepayQrPanel({ payment }: { payment: SepayPayment }) {
               Nội dung chuyển khoản
             </p>
             <p className="mt-1 break-all text-lg font-black text-[#172027]">
-              {payment.transferCode}
+              {payment.transferDescription ?? payment.transferCode}
             </p>
           </div>
 
@@ -325,8 +327,9 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
       </div>
       <a
         className="pos-button-primary mt-4 w-full bg-emerald-700 hover:bg-emerald-800"
-        href={`/invoices/${invoice.id}/print`}
+        href={getInvoicePrintHref(invoice.id)}
         target="_blank"
+        rel="noreferrer"
       >
         Xuất / in hóa đơn
       </a>
@@ -388,6 +391,21 @@ function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
               {formatMoney(details.amount)}
             </p>
           </div>
+
+          {details.invoiceId ? (
+            <a
+              className="pos-button-primary mt-2 w-full justify-center bg-emerald-700 text-center hover:bg-emerald-800"
+              href={getInvoicePrintHref(details.invoiceId)}
+              rel="noreferrer"
+              target="_blank"
+            >
+              In / xuất hóa đơn cho khách
+            </a>
+          ) : (
+            <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-700">
+              Đang tạo liên kết hóa đơn...
+            </p>
+          )}
         </div>
       </div>
     </section>

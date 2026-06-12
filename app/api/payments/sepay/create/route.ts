@@ -7,8 +7,10 @@ import {
   Prisma,
 } from "@prisma/client";
 import {
+  buildSepayTransferDescription,
   buildSepayQrUrl,
   buildSepayTransferCode,
+  getSepayQrDescription,
   normalizeSepayText,
 } from "@/lib/sepay-payment";
 import { prisma } from "@/lib/prisma";
@@ -62,6 +64,10 @@ function serializePayment(payment: {
     bankCode: payment.bankCode,
     accountNumber: payment.accountNumber,
     accountName: payment.accountName,
+    transferDescription: getSepayQrDescription(
+      payment.qrUrl,
+      payment.transferCode,
+    ),
     paidAt: payment.paidAt?.toISOString() ?? null,
     createdAt: payment.createdAt.toISOString(),
     updatedAt: payment.updatedAt.toISOString(),
@@ -88,22 +94,30 @@ async function createPendingPayment({
   amount,
   bankCode,
   orderId,
+  tableName,
 }: {
   accountName: string | null;
   accountNumber: string;
   amount: number;
   bankCode: string;
   orderId: number;
+  tableName: string | null;
 }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const transferCode = buildSepayTransferCode(
       orderId,
       `${Date.now().toString(36)}${randomUUID().slice(0, 8)}`,
     );
+    const transferDescription = buildSepayTransferDescription({
+      orderId,
+      tableName,
+      transferCode,
+    });
     const qrUrl = buildSepayQrUrl({
       accountNumber,
       amount,
       bankCode,
+      transferDescription,
       transferCode,
     });
 
@@ -171,6 +185,11 @@ export async function POST(request: Request) {
       include: {
         invoice: true,
         payment: true,
+        table: {
+          select: {
+            name: true,
+          },
+        },
         session: {
           include: {
             invoice: true,
@@ -250,6 +269,7 @@ export async function POST(request: Request) {
       ...sepayConfig,
       amount,
       orderId,
+      tableName: order.table.name,
     });
 
     return NextResponse.json(
