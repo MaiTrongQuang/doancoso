@@ -75,6 +75,13 @@ function isUniqueConstraintError(error: unknown) {
   );
 }
 
+function isMissingPaymentSchemaError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2021" || error.code === "P2022")
+  );
+}
+
 async function createPendingPayment({
   accountName,
   accountNumber,
@@ -254,6 +261,18 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    if (isMissingPaymentSchemaError(error)) {
+      console.error(error);
+
+      return NextResponse.json(
+        {
+          message:
+            "Cơ sở dữ liệu chưa cập nhật bảng thanh toán SePay. Vui lòng chạy Prisma migration cho Supabase.",
+        },
+        { status: 500 },
+      );
+    }
+
     if (isUniqueConstraintError(error)) {
       const payment = normalizedOrderId
         ? await prisma.payment.findUnique({ where: { orderId: normalizedOrderId } })
