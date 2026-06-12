@@ -10,6 +10,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import { removeSettledBillOrders } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
@@ -77,10 +78,28 @@ type SepayCreateResponse = {
 type PaymentPollingResponse = {
   message?: string;
   data?: {
+    order: {
+      id: number;
+      sessionId: number | null;
+      status: string;
+      totalAmount: number;
+      invoice: {
+        id: number;
+        paymentMethod: PaymentMethod;
+      } | null;
+    };
     orderStatus: string;
     paymentStatus: PaymentStatus | null;
     payment: SepayPayment | null;
   };
+};
+
+type PaymentSuccessDetails = {
+  amount: number;
+  invoiceId: number | null;
+  methodLabel: string;
+  orderLabel: string;
+  tableName: string;
 };
 
 const paymentOptions: Array<{
@@ -127,6 +146,23 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function getBillLabel(order: { id: number; sessionId: number | null }) {
+  return order.sessionId ? `Phiên #${order.sessionId}` : `Đơn #${order.id}`;
+}
+
+function findSettledBillOrder(
+  orders: readonly CashierOrder[],
+  bill: { orderId: number; sessionId: number | null },
+) {
+  return (
+    orders.find((order) =>
+      bill.sessionId !== null
+        ? order.sessionId === bill.sessionId
+        : order.id === bill.orderId,
+    ) ?? null
+  );
 }
 
 function getPayButtonLabel({
@@ -298,11 +334,73 @@ function InvoicePreview({ invoice }: { invoice: Invoice }) {
   );
 }
 
+function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-lg">
+      <div className="grid gap-5 p-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-lg font-black text-white shadow-md">
+            OK
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">
+              SePay đã xác nhận giao dịch
+            </p>
+            <h2 className="mt-2 text-3xl font-black leading-tight text-[#172027] lg:text-4xl">
+              THANH TOÁN THÀNH CÔNG
+            </h2>
+            <p className="mt-2 text-base font-semibold text-emerald-800">
+              Hóa đơn đã được tạo tự động. Cảm ơn quý khách.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 rounded-2xl border border-emerald-200 bg-white p-4 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[#625b50]">Bàn</span>
+            <span className="text-right font-black text-[#172027]">
+              {details.tableName}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[#625b50]">Phiên/đơn</span>
+            <span className="text-right font-semibold text-[#172027]">
+              {details.orderLabel}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[#625b50]">Phương thức</span>
+            <span className="text-right font-semibold text-[#172027]">
+              {details.methodLabel}
+            </span>
+          </div>
+          {details.invoiceId ? (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[#625b50]">Hóa đơn</span>
+              <span className="text-right font-semibold text-[#172027]">
+                #{details.invoiceId}
+              </span>
+            </div>
+          ) : null}
+          <div className="mt-2 border-t border-emerald-100 pt-3">
+            <p className="text-sm font-semibold text-[#625b50]">Đã nhận đủ</p>
+            <p className="mt-1 text-3xl font-black text-[#2f5d50]">
+              {formatMoney(details.amount)}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function CashierOrderPayment() {
   const [orders, setOrders] = useState<CashierOrder[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [paidInvoice, setPaidInvoice] = useState<Invoice | null>(null);
+  const [paymentSuccess, setPaymentSuccess] =
+    useState<PaymentSuccessDetails | null>(null);
   const [qrPayment, setQrPayment] = useState<SepayPayment | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -397,14 +495,34 @@ export function CashierOrderPayment() {
           result.data.paymentStatus === "PAID" ||
           result.data.orderStatus === "PAID"
         ) {
-          setMessage("Thanh toán QR thành công. Hóa đơn đã được tạo tự động.");
+          const settledBill = {
+            orderId: result.data.order.id,
+            sessionId: result.data.order.sessionId,
+          };
+          const paidBill =
+            findSettledBillOrder(orders, settledBill) ?? selectedOrder;
+
+          setMessage("");
+          setPaymentSuccess({
+            amount: paidBill?.totalAmount ?? result.data.order.totalAmount,
+            invoiceId: result.data.order.invoice?.id ?? null,
+            methodLabel: paymentLabel.QR_PAYMENT,
+            orderLabel: getBillLabel({
+              id: result.data.order.id,
+              sessionId: result.data.order.sessionId,
+            }),
+            tableName: paidBill?.table.name ?? "Đơn hàng",
+          });
           setQrPayment(null);
           setPaidInvoice(null);
           setSelectedOrderId(null);
+          setOrders((currentOrders) =>
+            removeSettledBillOrders(currentOrders, settledBill),
+          );
           const nextOrders = await fetchServedOrders();
 
           if (isMounted) {
-            setOrders(nextOrders);
+            setOrders(removeSettledBillOrders(nextOrders, settledBill));
             window.scrollTo({ top: 0, behavior: "smooth" });
           }
         }
@@ -426,7 +544,7 @@ export function CashierOrderPayment() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [pollingOrderId]);
+  }, [orders, pollingOrderId, selectedOrder]);
 
   async function handleCreateQrPayment() {
     if (!selectedOrder) {
@@ -437,6 +555,7 @@ export function CashierOrderPayment() {
     setMessage("");
     setError("");
     setPaidInvoice(null);
+    setPaymentSuccess(null);
     setIsPaying(true);
 
     try {
@@ -456,6 +575,7 @@ export function CashierOrderPayment() {
       }
 
       setQrPayment(result.data);
+      setPaymentSuccess(null);
       setMessage(
         result.message ??
           "Đã tạo mã QR. Vui lòng chờ SePay xác nhận giao dịch.",
@@ -484,6 +604,7 @@ export function CashierOrderPayment() {
 
     setMessage("");
     setError("");
+    setPaymentSuccess(null);
     setIsPaying(true);
 
     try {
@@ -503,11 +624,30 @@ export function CashierOrderPayment() {
         throw new Error(getErrorMessage(result, "Không thể thanh toán đơn."));
       }
 
-      setMessage(result.message ?? "Thanh toán thành công.");
+      const settledBill = {
+        orderId: result.data.orderId,
+        sessionId: result.data.sessionId,
+      };
+
+      setMessage("");
+      setPaymentSuccess({
+        amount: result.data.totalAmount,
+        invoiceId: result.data.id,
+        methodLabel: paymentLabel[result.data.paymentMethod],
+        orderLabel: getBillLabel({
+          id: result.data.orderId,
+          sessionId: result.data.sessionId,
+        }),
+        tableName: result.data.order.table.name,
+      });
       setPaidInvoice(result.data);
       setQrPayment(null);
       setSelectedOrderId(null);
-      await loadOrders();
+      setOrders((currentOrders) =>
+        removeSettledBillOrders(currentOrders, settledBill),
+      );
+      const nextOrders = await fetchServedOrders();
+      setOrders(removeSettledBillOrders(nextOrders, settledBill));
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caughtError) {
       setError(
@@ -537,6 +677,8 @@ export function CashierOrderPayment() {
           </button>
         }
       />
+
+      {paymentSuccess ? <PaymentSuccessNotice details={paymentSuccess} /> : null}
 
       {message ? <Alert tone="success">{message}</Alert> : null}
 
@@ -575,6 +717,7 @@ export function CashierOrderPayment() {
                     setSelectedOrderId(order.id);
                     setPaidInvoice(null);
                     setQrPayment(null);
+                    setPaymentSuccess(null);
                     setMessage("");
                     setError("");
                   }}

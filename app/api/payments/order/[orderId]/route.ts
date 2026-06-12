@@ -77,6 +77,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       },
       select: {
         id: true,
+        sessionId: true,
         status: true,
         totalAmount: true,
         invoice: {
@@ -102,6 +103,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       data: {
         order: {
           id: order.id,
+          sessionId: order.sessionId,
           status: order.status,
           totalAmount: order.totalAmount,
           invoice: order.invoice,
