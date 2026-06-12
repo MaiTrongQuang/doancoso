@@ -29,6 +29,11 @@ type TableForm = {
   status: TableStatus;
 };
 
+type TableResponse = {
+  message?: string;
+  data?: CafeTable;
+};
+
 const emptyForm: TableForm = {
   name: "",
   status: "AVAILABLE",
@@ -254,7 +259,7 @@ export function TableManager() {
         },
         body: JSON.stringify(form),
       });
-      const result = await response.json();
+      const result = (await response.json()) as TableResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -267,7 +272,21 @@ export function TableManager() {
 
       setMessage(result.message ?? "Lưu bàn thành công.");
       resetForm();
-      await loadTables();
+      if (result.data) {
+        setTables((currentTables) => {
+          if (editingTable) {
+            return currentTables.map((table) =>
+              table.id === result.data!.id ? result.data! : table,
+            );
+          }
+
+          return [...currentTables, result.data!].sort(
+            (left, right) => left.id - right.id,
+          );
+        });
+      } else {
+        await loadTables();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error ? caughtError.message : "Không thể lưu bàn.",
@@ -297,7 +316,7 @@ export function TableManager() {
           status,
         }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as TableResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -306,7 +325,15 @@ export function TableManager() {
       }
 
       setMessage("Cập nhật trạng thái bàn thành công.");
-      await loadTables();
+      if (result.data) {
+        setTables((currentTables) =>
+          currentTables.map((currentTable) =>
+            currentTable.id === result.data!.id ? result.data! : currentTable,
+          ),
+        );
+      } else {
+        await loadTables();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -357,7 +384,9 @@ export function TableManager() {
       if (editingTable?.id === table.id) {
         resetForm();
       }
-      await loadTables();
+      setTables((currentTables) =>
+        currentTables.filter((currentTable) => currentTable.id !== table.id),
+      );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error ? caughtError.message : "Không thể xóa bàn.",

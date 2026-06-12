@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { OrderStatus } from "@prisma/client";
 import {
   buildOrderListQuery,
+  serializeOrdersGroupedBySessionSummary,
   serializeOrdersGroupedBySession,
 } from "./order-read-model";
 
@@ -93,3 +94,59 @@ assert.deepEqual(
   groupedOrders[0].items.map((item) => item.productName),
   ["Coffee", "Tea"],
 );
+
+const summaryQuery = buildOrderListQuery({
+  statuses: [OrderStatus.PENDING],
+  dateRange: null,
+  groupBySession: false,
+  detail: "summary",
+});
+
+assert.equal("select" in summaryQuery, true);
+assert.equal("include" in summaryQuery, false);
+assert.equal("items" in summaryQuery.select, false);
+assert.deepEqual(summaryQuery.select.table, {
+  select: {
+    id: true,
+    name: true,
+  },
+});
+
+const groupedSummaryOrders = serializeOrdersGroupedBySessionSummary([
+  {
+    id: 3,
+    sessionId: 11,
+    status: OrderStatus.SERVED,
+    totalAmount: 45_000,
+    note: null,
+    createdAt,
+    updatedAt,
+    table: { id: 2, name: "Ban 2" },
+    session: {
+      id: 11,
+      orders: [{ status: OrderStatus.SERVED }, { status: OrderStatus.SERVED }],
+    },
+  },
+  {
+    id: 4,
+    sessionId: 11,
+    status: OrderStatus.SERVED,
+    totalAmount: 15_000,
+    note: "No sugar",
+    createdAt: new Date("2026-06-01T10:03:00.000+07:00"),
+    updatedAt: new Date("2026-06-01T10:06:00.000+07:00"),
+    table: { id: 2, name: "Ban 2" },
+    session: {
+      id: 11,
+      orders: [{ status: OrderStatus.SERVED }, { status: OrderStatus.SERVED }],
+    },
+  },
+]);
+
+assert.equal(groupedSummaryOrders.length, 1);
+assert.equal(groupedSummaryOrders[0].id, 3);
+assert.equal(groupedSummaryOrders[0].sessionId, 11);
+assert.equal(groupedSummaryOrders[0].totalAmount, 60_000);
+assert.equal(groupedSummaryOrders[0].note, "No sugar");
+assert.equal(groupedSummaryOrders[0].updatedAt, "2026-06-01T03:06:00.000Z");
+assert.equal("items" in groupedSummaryOrders[0], false);

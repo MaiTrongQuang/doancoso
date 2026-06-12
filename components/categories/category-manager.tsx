@@ -24,6 +24,11 @@ type CategoryForm = {
   description: string;
 };
 
+type CategoryResponse = {
+  message?: string;
+  data?: Category;
+};
+
 const emptyForm: CategoryForm = {
   name: "",
   description: "",
@@ -150,7 +155,7 @@ export function CategoryManager() {
         },
         body: JSON.stringify(form),
       });
-      const result = await response.json();
+      const result = (await response.json()) as CategoryResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -165,7 +170,17 @@ export function CategoryManager() {
 
       setMessage(result.message ?? "Lưu danh mục thành công.");
       resetForm();
-      await loadCategories();
+      if (result.data) {
+        setCategories((currentCategories) =>
+          editingCategory
+            ? currentCategories.map((category) =>
+                category.id === result.data!.id ? result.data! : category,
+              )
+            : [result.data!, ...currentCategories],
+        );
+      } else {
+        await loadCategories();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -206,7 +221,11 @@ export function CategoryManager() {
       if (editingCategory?.id === category.id) {
         resetForm();
       }
-      await loadCategories();
+      setCategories((currentCategories) =>
+        currentCategories.filter(
+          (currentCategory) => currentCategory.id !== category.id,
+        ),
+      );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error

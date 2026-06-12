@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   CountPill,
@@ -44,7 +44,13 @@ type Invoice = {
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paidAt: string;
-  order: CashierOrder;
+  order: {
+    table: {
+      id: number;
+      name: string;
+    };
+    items: CashierOrder["items"];
+  };
 };
 
 type InvoiceResponse = {
@@ -183,7 +189,7 @@ function getPayButtonLabel({
 
 async function fetchServedOrders() {
   const response = await fetch(
-    "/api/orders?statuses=SERVED&groupBySession=true",
+    "/api/orders?statuses=SERVED&groupBySession=true&view=summary",
     {
       cache: "no-store",
     },
@@ -194,7 +200,28 @@ async function fetchServedOrders() {
     throw new Error(getErrorMessage(result, "Không thể tải đơn đã phục vụ."));
   }
 
-  return (result.data ?? []) as CashierOrder[];
+  return ((result.data ?? []) as CashierOrder[]).map((order) => ({
+    ...order,
+    items: order.items ?? [],
+  }));
+}
+
+async function fetchBillDetail(orderId: number) {
+  const response = await fetch(`/api/orders/${orderId}?view=bill`, {
+    cache: "no-store",
+  });
+  const result = await response.json();
+
+  if (!response.ok || !result.data) {
+    throw new Error(
+      getErrorMessage(result, "Không thể tải chi tiết đơn đã phục vụ."),
+    );
+  }
+
+  return {
+    ...(result.data as CashierOrder),
+    items: (result.data as CashierOrder).items ?? [],
+  };
 }
 
 function SepayQrPanel({ payment }: { payment: SepayPayment }) {
@@ -275,68 +302,6 @@ function SepayQrPanel({ payment }: { payment: SepayPayment }) {
   );
 }
 
-function InvoicePreview({ invoice }: { invoice: Invoice }) {
-  return (
-    <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-      <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
-        Hóa đơn vừa tạo
-      </p>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black text-[#172027]">
-            Hóa đơn #{invoice.id}
-          </h2>
-          <p className="mt-1 text-sm text-emerald-700">
-            Đơn #{invoice.orderId} - {invoice.order.table.name}
-          </p>
-        </div>
-        <span className="pos-badge bg-white text-emerald-700">
-          {paymentLabel[invoice.paymentMethod]}
-        </span>
-      </div>
-
-      <div className="mt-4 rounded-2xl bg-white p-3">
-        {invoice.order.items.map((item) => (
-          <div
-            className="flex justify-between gap-3 border-b border-emerald-100 py-2 text-sm last:border-b-0"
-            key={item.id}
-          >
-            <span className="text-[#3b352d]">
-              {item.productName} x{item.quantity}
-            </span>
-            <span className="font-semibold text-[#1f2933]">
-              {formatMoney(item.price * item.quantity)}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex items-center justify-between">
-        <span className="text-sm font-medium text-emerald-800">
-          Thời gian thanh toán
-        </span>
-        <span className="text-sm font-semibold text-[#1f2933]">
-          {formatDateTime(invoice.paidAt)}
-        </span>
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-emerald-800">Tổng tiền</span>
-        <span className="text-xl font-bold text-[#2f5d50]">
-          {formatMoney(invoice.totalAmount)}
-        </span>
-      </div>
-      <a
-        className="pos-button-primary mt-4 w-full bg-emerald-700 hover:bg-emerald-800"
-        href={getInvoicePrintHref(invoice.id)}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Xuất / in hóa đơn
-      </a>
-    </section>
-  );
-}
-
 function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 shadow-lg">
@@ -414,15 +379,17 @@ function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
 
 export function CashierOrderPayment() {
   const [orders, setOrders] = useState<CashierOrder[]>([]);
+  const ordersRef = useRef<CashierOrder[]>([]);
+  const selectedOrderRef = useRef<CashierOrder | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
-  const [paidInvoice, setPaidInvoice] = useState<Invoice | null>(null);
   const [paymentSuccess, setPaymentSuccess] =
     useState<PaymentSuccessDetails | null>(null);
   const [qrPayment, setQrPayment] = useState<SepayPayment | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOrderDetail, setIsLoadingOrderDetail] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
 
   const selectedOrder = useMemo(
@@ -431,6 +398,11 @@ export function CashierOrderPayment() {
   );
   const pollingOrderId =
     qrPayment?.status === "PENDING" ? qrPayment.orderId : null;
+
+  useEffect(() => {
+    ordersRef.current = orders;
+    selectedOrderRef.current = selectedOrder;
+  }, [orders, selectedOrder]);
 
   async function loadOrders() {
     setIsLoading(true);
@@ -482,13 +454,66 @@ export function CashierOrderPayment() {
   }, []);
 
   useEffect(() => {
-    if (!pollingOrderId) {
+    if (!selectedOrderId) {
+      return;
+    }
+
+    const selectedOrderSummary =
+      orders.find((order) => order.id === selectedOrderId) ?? null;
+
+    if (!selectedOrderSummary || selectedOrderSummary.items.length > 0) {
       return;
     }
 
     let isMounted = true;
 
+    fetchBillDetail(selectedOrderId)
+      .then((orderDetail) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setOrders((currentOrders) =>
+          currentOrders.map((order) =>
+            order.id === orderDetail.id ? orderDetail : order,
+          ),
+        );
+      })
+      .catch((caughtError) => {
+        if (isMounted) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Không thể tải chi tiết đơn đã phục vụ.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingOrderDetail(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orders, selectedOrderId]);
+
+  useEffect(() => {
+    if (!pollingOrderId) {
+      return;
+    }
+
+    let isMounted = true;
+    let isPolling = false;
+
     async function pollPaymentStatus() {
+      if (document.visibilityState !== "visible" || isPolling) {
+        return;
+      }
+
+      isPolling = true;
+
       try {
         const response = await fetch(`/api/payments/order/${pollingOrderId}`, {
           cache: "no-store",
@@ -518,7 +543,8 @@ export function CashierOrderPayment() {
             sessionId: result.data.order.sessionId,
           };
           const paidBill =
-            findSettledBillOrder(orders, settledBill) ?? selectedOrder;
+            findSettledBillOrder(ordersRef.current, settledBill) ??
+            selectedOrderRef.current;
 
           setMessage("");
           setPaymentSuccess({
@@ -532,17 +558,12 @@ export function CashierOrderPayment() {
             tableName: paidBill?.table.name ?? "Đơn hàng",
           });
           setQrPayment(null);
-          setPaidInvoice(null);
           setSelectedOrderId(null);
+          setIsLoadingOrderDetail(false);
           setOrders((currentOrders) =>
             removeSettledBillOrders(currentOrders, settledBill),
           );
-          const nextOrders = await fetchServedOrders();
-
-          if (isMounted) {
-            setOrders(removeSettledBillOrders(nextOrders, settledBill));
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }
+          window.scrollTo({ top: 0, behavior: "smooth" });
         }
       } catch (caughtError) {
         if (isMounted) {
@@ -552,17 +573,27 @@ export function CashierOrderPayment() {
               : "Không thể kiểm tra trạng thái thanh toán.",
           );
         }
+      } finally {
+        isPolling = false;
       }
     }
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void pollPaymentStatus();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     pollPaymentStatus();
     const intervalId = window.setInterval(pollPaymentStatus, 3000);
 
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(intervalId);
     };
-  }, [orders, pollingOrderId, selectedOrder]);
+  }, [pollingOrderId]);
 
   async function handleCreateQrPayment() {
     if (!selectedOrder) {
@@ -572,7 +603,6 @@ export function CashierOrderPayment() {
 
     setMessage("");
     setError("");
-    setPaidInvoice(null);
     setPaymentSuccess(null);
     setIsPaying(true);
 
@@ -658,14 +688,12 @@ export function CashierOrderPayment() {
         }),
         tableName: result.data.order.table.name,
       });
-      setPaidInvoice(result.data);
       setQrPayment(null);
       setSelectedOrderId(null);
+      setIsLoadingOrderDetail(false);
       setOrders((currentOrders) =>
         removeSettledBillOrders(currentOrders, settledBill),
       );
-      const nextOrders = await fetchServedOrders();
-      setOrders(removeSettledBillOrders(nextOrders, settledBill));
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caughtError) {
       setError(
@@ -702,8 +730,6 @@ export function CashierOrderPayment() {
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
-      {paidInvoice ? <InvoicePreview invoice={paidInvoice} /> : null}
-
       <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Panel className="h-fit min-w-0 overflow-hidden">
           <PanelHeader
@@ -730,11 +756,11 @@ export function CashierOrderPayment() {
                       ? "rounded-2xl border border-[#2f5d50] bg-[#eff7f2] p-4 text-left shadow-sm"
                       : "rounded-2xl border border-[#eadfce] bg-white p-4 text-left shadow-sm transition hover:bg-[#fff7ea]"
                   }
-                  key={order.id}
-                  onClick={() => {
-                    setSelectedOrderId(order.id);
-                    setPaidInvoice(null);
-                    setQrPayment(null);
+	                  key={order.id}
+	                  onClick={() => {
+	                    setSelectedOrderId(order.id);
+	                    setIsLoadingOrderDetail(order.items.length === 0);
+	                    setQrPayment(null);
                     setPaymentSuccess(null);
                     setMessage("");
                     setError("");
@@ -806,9 +832,19 @@ export function CashierOrderPayment() {
                         <th className="px-4 py-3 text-right">Đơn giá</th>
                         <th className="px-4 py-3 text-right">Thành tiền</th>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {selectedOrder.items.map((item) => (
+	                    </thead>
+	                    <tbody>
+                      {isLoadingOrderDetail && selectedOrder.items.length === 0 ? (
+                        <tr className="border-t border-[#eadfce]">
+                          <td
+                            className="px-4 py-5 text-center text-sm font-semibold text-[#625b50]"
+                            colSpan={4}
+                          >
+                            Đang tải chi tiết món...
+                          </td>
+                        </tr>
+                      ) : null}
+	                      {selectedOrder.items.map((item) => (
                         <tr className="border-t border-[#eadfce]" key={item.id}>
                           <td className="px-4 py-3">
                             <p className="font-semibold text-[#1f2933]">

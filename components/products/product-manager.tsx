@@ -56,6 +56,11 @@ type ImageUploadResponse = {
   };
 };
 
+type ProductResponse = {
+  message?: string;
+  data?: Product;
+};
+
 const emptyForm: ProductForm = {
   name: "",
   description: "",
@@ -286,7 +291,7 @@ export function ProductManager() {
           categoryId: Number(form.categoryId),
         }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as ProductResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -301,7 +306,17 @@ export function ProductManager() {
 
       setMessage(result.message ?? "Lưu sản phẩm thành công.");
       resetForm();
-      await loadProducts();
+      if (result.data) {
+        setProducts((currentProducts) =>
+          editingProduct
+            ? currentProducts.map((product) =>
+                product.id === result.data!.id ? result.data! : product,
+              )
+            : [result.data!, ...currentProducts],
+        );
+      } else {
+        await loadProducts();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -340,7 +355,9 @@ export function ProductManager() {
       if (editingProduct?.id === product.id) {
         resetForm();
       }
-      await loadProducts();
+      setProducts((currentProducts) =>
+        currentProducts.filter((currentProduct) => currentProduct.id !== product.id),
+      );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -375,7 +392,7 @@ export function ProductManager() {
           categoryId: product.categoryId,
         }),
       });
-      const result = await response.json();
+      const result = (await response.json()) as ProductResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -388,7 +405,15 @@ export function ProductManager() {
           ? "Đã hiển thị sản phẩm trên menu."
           : "Đã ẩn sản phẩm khỏi menu.",
       );
-      await loadProducts();
+      if (result.data) {
+        setProducts((currentProducts) =>
+          currentProducts.map((currentProduct) =>
+            currentProduct.id === result.data!.id ? result.data! : currentProduct,
+          ),
+        );
+      } else {
+        await loadProducts();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error

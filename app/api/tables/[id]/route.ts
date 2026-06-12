@@ -31,6 +31,32 @@ function normalizeStatus(value: unknown) {
   return TableStatus.AVAILABLE;
 }
 
+function serializeTable(table: {
+  id: number;
+  name: string;
+  status: TableStatus;
+  qrCodeUrl: string | null;
+  _count: {
+    orders: number;
+  };
+  sessions: Array<{
+    id: number;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: table.id,
+    name: table.name,
+    status: table.status,
+    activeSessionId: table.sessions[0]?.id ?? null,
+    qrCodeUrl: table.qrCodeUrl,
+    orderCount: table._count.orders,
+    createdAt: table.createdAt.toISOString(),
+    updatedAt: table.updatedAt.toISOString(),
+  };
+}
+
 export async function PUT(request: Request, { params }: RouteContext) {
   const { id: idParam } = await params;
   const id = parseId(idParam);
@@ -154,12 +180,28 @@ export async function PUT(request: Request, { params }: RouteContext) {
           status,
           qrCodeUrl: table.qrCodeUrl ?? `/order/table/${id}`,
         },
+        include: {
+          _count: {
+            select: {
+              orders: true,
+            },
+          },
+          sessions: {
+            where: {
+              status: DiningSessionStatus.OPEN,
+            },
+            take: 1,
+            select: {
+              id: true,
+            },
+          },
+        },
       });
     });
 
     return NextResponse.json({
       message: "Cập nhật bàn thành công.",
-      data: updatedTable,
+      data: serializeTable(updatedTable),
     });
   } catch (error) {
     console.error(error);

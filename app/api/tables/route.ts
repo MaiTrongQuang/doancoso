@@ -19,6 +19,32 @@ function normalizeStatus(value: unknown) {
   return TableStatus.AVAILABLE;
 }
 
+function serializeTable(table: {
+  id: number;
+  name: string;
+  status: TableStatus;
+  qrCodeUrl: string | null;
+  _count: {
+    orders: number;
+  };
+  sessions: Array<{
+    id: number;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: table.id,
+    name: table.name,
+    status: table.status,
+    activeSessionId: table.sessions[0]?.id ?? null,
+    qrCodeUrl: table.qrCodeUrl,
+    orderCount: table._count.orders,
+    createdAt: table.createdAt.toISOString(),
+    updatedAt: table.updatedAt.toISOString(),
+  };
+}
+
 export async function GET() {
   try {
     const tables = await prisma.cafeTable.findMany({
@@ -44,16 +70,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      data: tables.map((table) => ({
-        id: table.id,
-        name: table.name,
-        status: table.status,
-        activeSessionId: table.sessions[0]?.id ?? null,
-        qrCodeUrl: table.qrCodeUrl,
-        orderCount: table._count.orders,
-        createdAt: table.createdAt.toISOString(),
-        updatedAt: table.updatedAt.toISOString(),
-      })),
+      data: tables.map(serializeTable),
     });
   } catch (error) {
     console.error(error);
@@ -127,13 +144,29 @@ export async function POST(request: Request) {
         data: {
           qrCodeUrl: `/order/table/${createdTable.id}`,
         },
+        include: {
+          _count: {
+            select: {
+              orders: true,
+            },
+          },
+          sessions: {
+            where: {
+              status: DiningSessionStatus.OPEN,
+            },
+            take: 1,
+            select: {
+              id: true,
+            },
+          },
+        },
       });
     });
 
     return NextResponse.json(
       {
         message: "Thêm bàn thành công.",
-        data: table,
+        data: serializeTable(table),
       },
       { status: 201 },
     );

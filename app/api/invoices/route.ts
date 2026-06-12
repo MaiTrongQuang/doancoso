@@ -33,30 +33,7 @@ function normalizePaymentMethod(value: unknown) {
     : null;
 }
 
-type InvoiceOrder = {
-  id: number;
-  status: OrderStatus;
-  note: string | null;
-  totalAmount: number;
-  createdAt: Date;
-  table: {
-    id: number;
-    name: string;
-  };
-  items: Array<{
-    id: number;
-    productId: number;
-    quantity: number;
-    price: number;
-    note: string | null;
-    product: {
-      id: number;
-      name: string;
-    };
-  }>;
-};
-
-function serializeInvoice(invoice: {
+function serializeCashierInvoice(invoice: {
   id: number;
   orderId: number;
   sessionId: number | null;
@@ -64,25 +41,13 @@ function serializeInvoice(invoice: {
   paymentMethod: PaymentMethod;
   paidAt: Date;
   createdAt: Date;
-  order: InvoiceOrder;
-  session: {
-    id: number;
-    orders: InvoiceOrder[];
-  } | null;
+  order: {
+    table: {
+      id: number;
+      name: string;
+    };
+  };
 }) {
-  const billOrders =
-    invoice.session?.orders.filter(
-      (order) => order.status !== OrderStatus.CANCELLED,
-    ) ?? [invoice.order];
-  const sortedOrders = [...billOrders].sort(
-    (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
-  );
-  const [firstOrder] = sortedOrders;
-
-  if (!firstOrder) {
-    throw new Error("Cannot serialize invoice without billable orders.");
-  }
-
   return {
     id: invoice.id,
     orderId: invoice.orderId,
@@ -92,79 +57,11 @@ function serializeInvoice(invoice: {
     paidAt: invoice.paidAt.toISOString(),
     createdAt: invoice.createdAt.toISOString(),
     order: {
-      id: firstOrder.id,
-      status: firstOrder.status,
-      note: sortedOrders.map((order) => order.note).find(Boolean) ?? null,
-      totalAmount: invoice.totalAmount,
-      createdAt: firstOrder.createdAt.toISOString(),
-      table: firstOrder.table,
-      items: sortedOrders.flatMap((order) => order.items).map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        productName: item.product.name,
-        quantity: item.quantity,
-        price: item.price,
-        note: item.note,
-      })),
+      table: invoice.order.table,
+      items: [],
     },
   };
 }
-
-const invoiceInclude = {
-  order: {
-    include: {
-      table: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      items: {
-        orderBy: {
-          id: "asc",
-        },
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  },
-  session: {
-    include: {
-      orders: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        include: {
-          table: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          items: {
-            orderBy: {
-              id: "asc",
-            },
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-} as const;
 
 export async function GET(request: Request) {
   try {
@@ -360,14 +257,32 @@ export async function POST(request: Request) {
           totalAmount,
           paymentMethod,
         },
-        include: invoiceInclude,
+        select: {
+          id: true,
+          orderId: true,
+          sessionId: true,
+          totalAmount: true,
+          paymentMethod: true,
+          paidAt: true,
+          createdAt: true,
+          order: {
+            select: {
+              table: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
     });
 
     return NextResponse.json(
       {
         message: "Thanh toán thành công.",
-        data: serializeInvoice(invoice),
+        data: serializeCashierInvoice(invoice),
       },
       { status: 201 },
     );

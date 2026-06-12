@@ -46,6 +46,39 @@ function normalizeStatus(value: unknown) {
     : ProductStatus.AVAILABLE;
 }
 
+function serializeProduct(product: {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  status: ProductStatus;
+  categoryId: number;
+  category: {
+    id: number;
+    name: string;
+  };
+  _count: {
+    orderItems: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    status: product.status,
+    categoryId: product.categoryId,
+    category: product.category,
+    orderItemCount: product._count.orderItems,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const categoryId = normalizeCategoryId(searchParams.get("categoryId"));
@@ -85,19 +118,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      data: products.map((product) => ({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        imageUrl: product.imageUrl,
-        status: product.status,
-        categoryId: product.categoryId,
-        category: product.category,
-        orderItemCount: product._count.orderItems,
-        createdAt: product.createdAt.toISOString(),
-        updatedAt: product.updatedAt.toISOString(),
-      })),
+      data: products.map(serializeProduct),
     });
   } catch (error) {
     console.error(error);
@@ -193,6 +214,11 @@ export async function POST(request: Request) {
             name: true,
           },
         },
+        _count: {
+          select: {
+            orderItems: true,
+          },
+        },
       },
     });
     revalidateTag(menuCatalogCacheTag, "max");
@@ -200,7 +226,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message: "Thêm sản phẩm thành công.",
-        data: product,
+        data: serializeProduct(product),
       },
       { status: 201 },
     );

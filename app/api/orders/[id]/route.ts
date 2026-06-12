@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { serializeOrdersGroupedBySession } from "@/lib/order-read-model";
 import { hasRole } from "@/lib/server-auth";
 
 type RouteContext = {
@@ -76,7 +77,7 @@ function serializeOrder(order: {
   };
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
+export async function GET(request: Request, { params }: RouteContext) {
   const { id: idParam } = await params;
   const id = parseId(idParam);
 
@@ -95,6 +96,78 @@ export async function GET(_request: Request, { params }: RouteContext) {
         { message: "Bạn không có quyền xem đơn hàng." },
         { status: 403 },
       );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const shouldLoadBill = searchParams.get("view") === "bill";
+
+    if (shouldLoadBill) {
+      const anchorOrder = await prisma.order.findUnique({
+        where: {
+          id,
+        },
+        select: {
+          id: true,
+          sessionId: true,
+        },
+      });
+
+      if (!anchorOrder) {
+        return NextResponse.json(
+          { message: "Đơn hàng không tồn tại." },
+          { status: 404 },
+        );
+      }
+
+      if (anchorOrder.sessionId) {
+        const billOrders = await prisma.order.findMany({
+          where: {
+            sessionId: anchorOrder.sessionId,
+            status: {
+              not: OrderStatus.CANCELLED,
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+          include: {
+            table: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            items: {
+              orderBy: {
+                id: "asc",
+              },
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            session: {
+              select: {
+                id: true,
+                orders: {
+                  select: {
+                    status: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        const [bill] = serializeOrdersGroupedBySession(billOrders);
+
+        return NextResponse.json({
+          data: bill ?? null,
+        });
+      }
     }
 
     const order = await prisma.order.findUnique({

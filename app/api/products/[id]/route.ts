@@ -57,6 +57,39 @@ function normalizeStatus(value: unknown) {
     : ProductStatus.AVAILABLE;
 }
 
+function serializeProduct(product: {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  imageUrl: string | null;
+  status: ProductStatus;
+  categoryId: number;
+  category: {
+    id: number;
+    name: string;
+  };
+  _count: {
+    orderItems: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    status: product.status,
+    categoryId: product.categoryId,
+    category: product.category,
+    orderItemCount: product._count.orderItems,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
+  };
+}
+
 export async function PUT(request: Request, { params }: RouteContext) {
   const { id: idParam } = await params;
   const id = parseId(idParam);
@@ -165,13 +198,18 @@ export async function PUT(request: Request, { params }: RouteContext) {
             name: true,
           },
         },
+        _count: {
+          select: {
+            orderItems: true,
+          },
+        },
       },
     });
     revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Cập nhật sản phẩm thành công.",
-      data: updatedProduct,
+      data: serializeProduct(updatedProduct),
     });
   } catch (error) {
     console.error(error);

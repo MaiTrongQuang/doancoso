@@ -3,6 +3,12 @@ export type StaffQueueOrder = {
   status: string;
 };
 
+export type StaffQueueOrderPatch = {
+  id: number;
+  status: string;
+  updatedAt?: string;
+};
+
 export function applyUpdatedStaffOrder<T extends StaffQueueOrder>(
   orders: T[],
   updatedOrder: T,
@@ -22,5 +28,25 @@ export function applyUpdatedStaffOrder<T extends StaffQueueOrder>(
 
   return orders.map((order) =>
     order.id === updatedOrder.id ? updatedOrder : order,
+  );
+}
+
+export function applyStaffOrderPatch<T extends StaffQueueOrder>(
+  orders: T[],
+  patch: StaffQueueOrderPatch,
+  visibleStatuses: readonly string[],
+) {
+  const existingOrder = orders.find((order) => order.id === patch.id);
+
+  if (!existingOrder) {
+    return orders;
+  }
+
+  if (!visibleStatuses.includes(patch.status)) {
+    return orders.filter((order) => order.id !== patch.id);
+  }
+
+  return orders.map((order) =>
+    order.id === patch.id ? ({ ...order, ...patch } as T) : order,
   );
 }

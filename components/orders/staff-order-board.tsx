@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   CountPill,
@@ -15,7 +15,9 @@ import {
   getKitchenOrderUrgency,
   sortKitchenOrdersByUrgency,
 } from "@/lib/kitchen-order-priority";
-import { applyUpdatedStaffOrder } from "@/lib/staff-order-queue";
+import {
+  applyStaffOrderPatch,
+} from "@/lib/staff-order-queue";
 
 type StaffOrderStatus = "PENDING" | "CONFIRMED" | "PREPARING";
 type OrderStatus = StaffOrderStatus | "SERVED" | "PAID" | "CANCELLED";
@@ -43,7 +45,11 @@ type StaffOrder = {
 
 type OrderStatusResponse = {
   message?: string;
-  data?: StaffOrder;
+  data?: {
+    id: number;
+    status: OrderStatus;
+    updatedAt: string;
+  };
 };
 
 type OrderAction = {
@@ -54,6 +60,7 @@ type OrderAction = {
 type StatusCardKey = "NEW" | "CONFIRMED" | "PREPARING";
 
 const visibleStatuses: StaffOrderStatus[] = ["PENDING", "CONFIRMED", "PREPARING"];
+const kitchenPollIntervalMs = 12_000;
 
 const statusCards: Array<{
   key: StatusCardKey;
@@ -140,8 +147,61 @@ async function fetchStaffOrders() {
   return (result.data ?? []) as StaffOrder[];
 }
 
+async function fetchStaffOrderSummaries() {
+  const response = await fetch(
+    `/api/orders?statuses=${visibleStatuses.join(",")}&view=summary`,
+    {
+      cache: "no-store",
+    },
+  );
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(result, "Không thể tải đơn hàng."));
+  }
+
+  return (result.data ?? []) as Array<{
+    id: number;
+    status: OrderStatus;
+    updatedAt: string;
+  }>;
+}
+
+function hasStaffOrderListChanged(
+  currentOrders: StaffOrder[],
+  nextSummaries: Array<{
+    id: number;
+    status: OrderStatus;
+    updatedAt: string;
+  }>,
+) {
+  if (currentOrders.length !== nextSummaries.length) {
+    return true;
+  }
+
+  const currentOrderById = new Map(
+    currentOrders.map((order) => [
+      order.id,
+      {
+        status: order.status,
+        updatedAt: order.updatedAt,
+      },
+    ]),
+  );
+
+  return nextSummaries.some((summary) => {
+    const currentOrder = currentOrderById.get(summary.id);
+    return (
+      !currentOrder ||
+      currentOrder.status !== summary.status ||
+      currentOrder.updatedAt !== summary.updatedAt
+    );
+  });
+}
+
 export function StaffOrderBoard() {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
+  const ordersRef = useRef<StaffOrder[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -169,6 +229,10 @@ export function StaffOrderBoard() {
     () => sortKitchenOrdersByUrgency(orders, now),
     [now, orders],
   );
+
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   async function loadOrders() {
     setIsLoading(true);
@@ -214,18 +278,26 @@ export function StaffOrderBoard() {
     }
 
     loadInitialOrders();
-    const intervalId = window.setInterval(async () => {
-      if (isPolling) {
+
+    async function pollOrderSummaries() {
+      if (document.visibilityState !== "visible" || isPolling) {
         return;
       }
 
       isPolling = true;
 
       try {
-        const nextOrders = await fetchStaffOrders();
+        const nextSummaries = await fetchStaffOrderSummaries();
 
-        if (isMounted) {
-          setOrders(nextOrders);
+        if (
+          isMounted &&
+          hasStaffOrderListChanged(ordersRef.current, nextSummaries)
+        ) {
+          const nextOrders = await fetchStaffOrders();
+
+          if (isMounted) {
+            setOrders(nextOrders);
+          }
         }
       } catch (caughtError) {
         if (isMounted) {
@@ -238,10 +310,23 @@ export function StaffOrderBoard() {
       } finally {
         isPolling = false;
       }
-    }, 5000);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void pollOrderSummaries();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const intervalId = window.setInterval(
+      pollOrderSummaries,
+      kitchenPollIntervalMs,
+    );
 
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(intervalId);
     };
   }, []);
@@ -289,7 +374,7 @@ export function StaffOrderBoard() {
       setMessage(result.message ?? "Cập nhật trạng thái đơn thành công.");
       if (result.data) {
         setOrders((currentOrders) =>
-          applyUpdatedStaffOrder(currentOrders, result.data!, visibleStatuses),
+          applyStaffOrderPatch(currentOrders, result.data!, visibleStatuses),
         );
       } else {
         await loadOrders();

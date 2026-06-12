@@ -40,6 +40,29 @@ export type OrderListRecordWithSession = OrderListRecord & {
   } | null;
 };
 
+export type OrderSummaryRecord = {
+  id: number;
+  sessionId: number | null;
+  status: OrderStatus;
+  totalAmount: number;
+  note: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  table: {
+    id: number;
+    name: string;
+  };
+};
+
+export type OrderSummaryRecordWithSession = OrderSummaryRecord & {
+  session: {
+    id: number;
+    orders: Array<{
+      status: OrderStatus;
+    }>;
+  } | null;
+};
+
 const orderListInclude = {
   table: {
     select: {
@@ -76,10 +99,43 @@ const groupedOrderListInclude = {
   },
 } as const;
 
+const orderSummarySelect = {
+  id: true,
+  sessionId: true,
+  status: true,
+  totalAmount: true,
+  note: true,
+  createdAt: true,
+  updatedAt: true,
+  table: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} as const;
+
+const groupedOrderSummarySelect = {
+  ...orderSummarySelect,
+  session: {
+    select: {
+      id: true,
+      orders: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  },
+} as const;
+
+type OrderListDetail = "full" | "summary";
+
 type BuildOrderListQueryOptions<Grouped extends boolean> = {
   statuses: OrderStatus[];
   dateRange: OrderDateRange | null;
   groupBySession: Grouped;
+  detail?: OrderListDetail;
 };
 
 type OrderListQueryBase = {
@@ -98,19 +154,28 @@ type OrderListQueryBase = {
 };
 
 export function buildOrderListQuery(
-  options: BuildOrderListQueryOptions<true>,
+  options: BuildOrderListQueryOptions<true> & { detail: "summary" },
+): OrderListQueryBase & { select: typeof groupedOrderSummarySelect };
+export function buildOrderListQuery(
+  options: BuildOrderListQueryOptions<false> & { detail: "summary" },
+): OrderListQueryBase & { select: typeof orderSummarySelect };
+export function buildOrderListQuery(
+  options: BuildOrderListQueryOptions<true> & { detail?: "full" },
 ): OrderListQueryBase & { include: typeof groupedOrderListInclude };
 export function buildOrderListQuery(
-  options: BuildOrderListQueryOptions<false>,
+  options: BuildOrderListQueryOptions<false> & { detail?: "full" },
 ): OrderListQueryBase & { include: typeof orderListInclude };
 export function buildOrderListQuery({
   dateRange,
+  detail = "full",
   groupBySession,
   statuses,
 }: BuildOrderListQueryOptions<boolean>):
   | (OrderListQueryBase & { include: typeof groupedOrderListInclude })
-  | (OrderListQueryBase & { include: typeof orderListInclude }) {
-  return {
+  | (OrderListQueryBase & { include: typeof orderListInclude })
+  | (OrderListQueryBase & { select: typeof groupedOrderSummarySelect })
+  | (OrderListQueryBase & { select: typeof orderSummarySelect }) {
+  const baseQuery = {
     where: {
       ...(statuses.length > 0
         ? {
@@ -131,6 +196,17 @@ export function buildOrderListQuery({
     orderBy: {
       createdAt: "desc",
     },
+  } as const;
+
+  if (detail === "summary") {
+    return {
+      ...baseQuery,
+      select: groupBySession ? groupedOrderSummarySelect : orderSummarySelect,
+    } as const;
+  }
+
+  return {
+    ...baseQuery,
     include: groupBySession ? groupedOrderListInclude : orderListInclude,
   } as const;
 }
@@ -156,7 +232,22 @@ export function serializeOrder(order: OrderListRecord) {
   };
 }
 
-function isReadySessionOrder(order: OrderListRecordWithSession) {
+export function serializeOrderSummary(order: OrderSummaryRecord) {
+  return {
+    id: order.id,
+    sessionId: order.sessionId,
+    status: order.status,
+    totalAmount: order.totalAmount,
+    note: order.note,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    table: order.table,
+  };
+}
+
+function isReadySessionOrder(
+  order: OrderListRecordWithSession | OrderSummaryRecordWithSession,
+) {
   if (!order.session) {
     return true;
   }
@@ -164,6 +255,29 @@ function isReadySessionOrder(order: OrderListRecordWithSession) {
   return canPayDiningSession(
     order.session.orders.map((sessionOrder) => sessionOrder.status),
   );
+}
+
+function groupOrdersBySession<TOrder extends { sessionId: number | null }>(
+  orders: TOrder[],
+) {
+  const sessionGroups = new Map<number, TOrder[]>();
+  const standaloneOrders: TOrder[] = [];
+
+  for (const order of orders) {
+    if (!order.sessionId) {
+      standaloneOrders.push(order);
+      continue;
+    }
+
+    const currentGroup = sessionGroups.get(order.sessionId) ?? [];
+    currentGroup.push(order);
+    sessionGroups.set(order.sessionId, currentGroup);
+  }
+
+  return {
+    sessionGroups,
+    standaloneOrders,
+  };
 }
 
 function serializeSessionBill(orders: OrderListRecordWithSession[]) {
@@ -203,26 +317,59 @@ function serializeSessionBill(orders: OrderListRecordWithSession[]) {
   };
 }
 
+function serializeSessionBillSummary(orders: OrderSummaryRecordWithSession[]) {
+  const [firstOrder] = orders;
+
+  if (!firstOrder) {
+    throw new Error("Cannot serialize an empty session bill.");
+  }
+
+  const sortedOrders = [...orders].sort(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+  );
+  const newestUpdatedAt = sortedOrders.reduce(
+    (latest, order) => (order.updatedAt > latest ? order.updatedAt : latest),
+    sortedOrders[0].updatedAt,
+  );
+
+  return {
+    id: firstOrder.id,
+    sessionId: firstOrder.sessionId,
+    status: firstOrder.status,
+    totalAmount: orders.reduce((total, order) => total + order.totalAmount, 0),
+    note: sortedOrders.map((order) => order.note).find(Boolean) ?? null,
+    createdAt: sortedOrders[0].createdAt.toISOString(),
+    updatedAt: newestUpdatedAt.toISOString(),
+    table: firstOrder.table,
+  };
+}
+
 export function serializeOrdersGroupedBySession(
   orders: OrderListRecordWithSession[],
 ) {
-  const sessionGroups = new Map<number, OrderListRecordWithSession[]>();
-  const standaloneOrders: OrderListRecordWithSession[] = [];
-
-  for (const order of orders.filter(isReadySessionOrder)) {
-    if (!order.sessionId) {
-      standaloneOrders.push(order);
-      continue;
-    }
-
-    const currentGroup = sessionGroups.get(order.sessionId) ?? [];
-    currentGroup.push(order);
-    sessionGroups.set(order.sessionId, currentGroup);
-  }
+  const { sessionGroups, standaloneOrders } = groupOrdersBySession(
+    orders.filter(isReadySessionOrder),
+  );
 
   return [
     ...standaloneOrders.map(serializeOrder),
     ...Array.from(sessionGroups.values()).map(serializeSessionBill),
+  ].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+export function serializeOrdersGroupedBySessionSummary(
+  orders: OrderSummaryRecordWithSession[],
+) {
+  const { sessionGroups, standaloneOrders } = groupOrdersBySession(
+    orders.filter(isReadySessionOrder),
+  );
+
+  return [
+    ...standaloneOrders.map(serializeOrderSummary),
+    ...Array.from(sessionGroups.values()).map(serializeSessionBillSummary),
   ].sort(
     (left, right) =>
       new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),

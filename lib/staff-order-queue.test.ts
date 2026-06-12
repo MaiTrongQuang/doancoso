@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
-import { applyUpdatedStaffOrder } from "./staff-order-queue";
+import {
+  applyStaffOrderPatch,
+  applyUpdatedStaffOrder,
+} from "./staff-order-queue";
 
 const visibleStatuses = ["PENDING", "CONFIRMED", "PREPARING"] as const;
 
@@ -44,4 +47,49 @@ assert.deepEqual(
     visibleStatuses,
   ),
   [],
+);
+
+assert.deepEqual(
+  applyStaffOrderPatch(
+    [baseOrder],
+    {
+      id: 1,
+      status: "CONFIRMED",
+      updatedAt: "2026-06-01T10:01:00.000+07:00",
+    },
+    visibleStatuses,
+  ),
+  [
+    {
+      ...baseOrder,
+      status: "CONFIRMED",
+      updatedAt: "2026-06-01T10:01:00.000+07:00",
+    },
+  ],
+);
+
+assert.deepEqual(
+  applyStaffOrderPatch(
+    [baseOrder],
+    {
+      id: 1,
+      status: "SERVED",
+      updatedAt: "2026-06-01T10:02:00.000+07:00",
+    },
+    visibleStatuses,
+  ),
+  [],
+);
+
+assert.deepEqual(
+  applyStaffOrderPatch(
+    [baseOrder],
+    {
+      id: 999,
+      status: "CONFIRMED",
+      updatedAt: "2026-06-01T10:01:00.000+07:00",
+    },
+    visibleStatuses,
+  ),
+  [baseOrder],
 );

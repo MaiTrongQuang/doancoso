@@ -27,45 +27,15 @@ function normalizeStatus(value: unknown) {
   return null;
 }
 
-function serializeOrder(order: {
+function serializeOrderStatusPatch(order: {
   id: number;
   status: OrderStatus;
-  totalAmount: number;
-  note: string | null;
-  createdAt: Date;
   updatedAt: Date;
-  table: {
-    id: number;
-    name: string;
-  };
-  items: Array<{
-    id: number;
-    productId: number;
-    quantity: number;
-    price: number;
-    note: string | null;
-    product: {
-      id: number;
-      name: string;
-    };
-  }>;
 }) {
   return {
     id: order.id,
     status: order.status,
-    totalAmount: order.totalAmount,
-    note: order.note,
-    createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
-    table: order.table,
-    items: order.items.map((item) => ({
-      id: item.id,
-      productId: item.productId,
-      productName: item.product.name,
-      quantity: item.quantity,
-      price: item.price,
-      note: item.note,
-    })),
   };
 }
 
@@ -124,32 +94,35 @@ export async function PUT(request: Request, { params }: RouteContext) {
       );
     }
 
+    if (nextStatus !== OrderStatus.CANCELLED) {
+      const updatedOrder = await prisma.order.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+        },
+        select: {
+          id: true,
+          status: true,
+          updatedAt: true,
+        },
+      });
+
+      return NextResponse.json({
+        message: "Cập nhật trạng thái đơn hàng thành công.",
+        data: serializeOrderStatusPatch(updatedOrder),
+      });
+    }
+
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.order.update({
         where: { id },
         data: {
           status: nextStatus,
         },
-        include: {
-          table: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          items: {
-            orderBy: {
-              id: "asc",
-            },
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
+        select: {
+          id: true,
+          status: true,
+          updatedAt: true,
         },
       });
 
@@ -206,7 +179,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     return NextResponse.json({
       message: "Cập nhật trạng thái đơn hàng thành công.",
-      data: serializeOrder(updatedOrder),
+      data: serializeOrderStatusPatch(updatedOrder),
     });
   } catch (error) {
     console.error(error);

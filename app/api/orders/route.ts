@@ -15,6 +15,8 @@ import {
 import {
   buildOrderListQuery,
   serializeOrder,
+  serializeOrderSummary,
+  serializeOrdersGroupedBySessionSummary,
   serializeOrdersGroupedBySession,
 } from "@/lib/order-read-model";
 import {
@@ -92,8 +94,24 @@ export async function GET(request: Request) {
     );
     const dateRange = getVietnamDateRange(searchParams.get("date"));
     const groupBySession = searchParams.get("groupBySession") === "true";
+    const detail = searchParams.get("view") === "summary" ? "summary" : "full";
 
     if (groupBySession) {
+      if (detail === "summary") {
+        const orders = await prisma.order.findMany(
+          buildOrderListQuery({
+            statuses,
+            dateRange,
+            groupBySession: true,
+            detail: "summary",
+          }),
+        );
+
+        return NextResponse.json({
+          data: serializeOrdersGroupedBySessionSummary(orders),
+        });
+      }
+
       const orders = await prisma.order.findMany(
         buildOrderListQuery({
           statuses,
@@ -104,6 +122,21 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         data: serializeOrdersGroupedBySession(orders),
+      });
+    }
+
+    if (detail === "summary") {
+      const orders = await prisma.order.findMany(
+        buildOrderListQuery({
+          statuses,
+          dateRange,
+          groupBySession: false,
+          detail: "summary",
+        }),
+      );
+
+      return NextResponse.json({
+        data: orders.map(serializeOrderSummary),
       });
     }
 

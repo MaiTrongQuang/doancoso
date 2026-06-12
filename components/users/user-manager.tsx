@@ -28,6 +28,11 @@ type UserForm = {
   role: UserRole;
 };
 
+type UserResponse = {
+  message?: string;
+  data?: User;
+};
+
 const emptyForm: UserForm = {
   name: "",
   email: "",
@@ -225,7 +230,7 @@ export function UserManager() {
         },
         body: JSON.stringify(form),
       });
-      const result = await response.json();
+      const result = (await response.json()) as UserResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -240,7 +245,17 @@ export function UserManager() {
 
       setMessage(result.message ?? "Lưu người dùng thành công.");
       resetForm();
-      await loadUsers();
+      if (result.data) {
+        setUsers((currentUsers) =>
+          editingUser
+            ? currentUsers.map((user) =>
+                user.id === result.data!.id ? result.data! : user,
+              )
+            : [result.data!, ...currentUsers],
+        );
+      } else {
+        await loadUsers();
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -279,7 +294,9 @@ export function UserManager() {
       if (editingUser?.id === user.id) {
         resetForm();
       }
-      await loadUsers();
+      setUsers((currentUsers) =>
+        currentUsers.filter((currentUser) => currentUser.id !== user.id),
+      );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error

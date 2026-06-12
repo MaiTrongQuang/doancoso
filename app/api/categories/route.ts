@@ -21,6 +21,26 @@ function normalizeName(value: unknown) {
   return value.trim();
 }
 
+function serializeCategory(category: {
+  id: number;
+  name: string;
+  description: string | null;
+  _count: {
+    products: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    productCount: category._count.products,
+    createdAt: category.createdAt.toISOString(),
+    updatedAt: category.updatedAt.toISOString(),
+  };
+}
+
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
@@ -37,14 +57,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      data: categories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        description: category.description,
-        productCount: category._count.products,
-        createdAt: category.createdAt.toISOString(),
-        updatedAt: category.updatedAt.toISOString(),
-      })),
+      data: categories.map(serializeCategory),
     });
   } catch (error) {
     console.error(error);
@@ -99,13 +112,20 @@ export async function POST(request: Request) {
         name,
         description,
       },
+      include: {
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
     });
     revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json(
       {
         message: "Thêm danh mục thành công.",
-        data: category,
+        data: serializeCategory(category),
       },
       { status: 201 },
     );

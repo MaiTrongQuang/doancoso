@@ -32,6 +32,26 @@ function normalizeName(value: unknown) {
   return value.trim();
 }
 
+function serializeCategory(category: {
+  id: number;
+  name: string;
+  description: string | null;
+  _count: {
+    products: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    productCount: category._count.products,
+    createdAt: category.createdAt.toISOString(),
+    updatedAt: category.updatedAt.toISOString(),
+  };
+}
+
 export async function PUT(request: Request, { params }: RouteContext) {
   const { id: idParam } = await params;
   const id = parseId(idParam);
@@ -100,12 +120,19 @@ export async function PUT(request: Request, { params }: RouteContext) {
         name,
         description,
       },
+      include: {
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
     });
     revalidateTag(menuCatalogCacheTag, "max");
 
     return NextResponse.json({
       message: "Cập nhật danh mục thành công.",
-      data: updatedCategory,
+      data: serializeCategory(updatedCategory),
     });
   } catch (error) {
     console.error(error);
