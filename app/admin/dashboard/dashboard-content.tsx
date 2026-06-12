@@ -91,8 +91,8 @@ const paymentToneClassName: Record<string, string> = {
 
 const invoiceMethodLabel: Record<string, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "QR SePay",
-  QR_PAYMENT: "QR SePay",
+  BANK_TRANSFER: "Thanh toán QR",
+  QR_PAYMENT: "Thanh toán QR",
 };
 
 function formatDateTime(value: string) {
@@ -248,7 +248,7 @@ export function DashboardContent() {
       },
       {
         key: "QR",
-        label: "QR SePay",
+        label: "Thanh toán QR",
         invoiceCount: qrInvoiceCount,
         revenue: qrRevenue,
         share: totalRevenue > 0 ? Math.round((qrRevenue / totalRevenue) * 100) : 0,

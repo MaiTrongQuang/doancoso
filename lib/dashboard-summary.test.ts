@@ -135,6 +135,11 @@ assert.equal(result.paymentStats.length, Object.values(PaymentMethod).length);
 assert.equal(result.paymentStats[0].label, "Tiền mặt");
 assert.equal(result.paymentStats[0].share, 100);
 assert.equal(
+  result.paymentStats.find((item) => item.paymentMethod === PaymentMethod.QR_PAYMENT)
+    ?.label,
+  "Thanh toán QR",
+);
+assert.equal(
   result.orderStatusStats.find((item) => item.status === OrderStatus.PENDING)
     ?.count,
   1,

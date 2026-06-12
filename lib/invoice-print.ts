@@ -2,8 +2,8 @@ export type PrintablePaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
 
 const paymentLabels: Record<PrintablePaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR (SePay)",
-  QR_PAYMENT: "Thanh toán QR (SePay)",
+  BANK_TRANSFER: "Thanh toán QR",
+  QR_PAYMENT: "Thanh toán QR",
 };
 
 export const receiptStoreInfo = {

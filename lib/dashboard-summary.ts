@@ -115,8 +115,8 @@ export function createDashboardDayRange(dateKey: string) {
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR (SePay)",
-  QR_PAYMENT: "Thanh toán QR (SePay)",
+  BANK_TRANSFER: "Thanh toán QR",
+  QR_PAYMENT: "Thanh toán QR",
 };
 
 const orderStatusLabels: Record<OrderStatus, string> = {

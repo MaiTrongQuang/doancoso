@@ -122,15 +122,15 @@ const paymentOptions: Array<{
   },
   {
     value: "BANK_TRANSFER",
-    label: "Thanh toán QR (SePay)",
-    description: "Tạo mã QR SePay và tự xác nhận qua webhook ngân hàng.",
+    label: "Thanh toán QR",
+    description: "Tạo mã QR ngân hàng và tự xác nhận giao dịch.",
   },
 ];
 
 const paymentLabel: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR (SePay)",
-  QR_PAYMENT: "Thanh toán QR (SePay)",
+  BANK_TRANSFER: "Thanh toán QR",
+  QR_PAYMENT: "Thanh toán QR",
 };
 
 function getErrorMessage(value: unknown, fallback: string) {
@@ -181,7 +181,7 @@ function getPayButtonLabel({
   paymentMethod: PaymentMethod;
 }) {
   if (paymentMethod === "BANK_TRANSFER") {
-    return isPaying ? "Đang tạo QR..." : "Tạo mã QR (SePay)";
+    return isPaying ? "Đang tạo QR..." : "Tạo mã QR";
   }
 
   return isPaying ? "Đang thanh toán..." : "Thanh toán";
@@ -230,10 +230,10 @@ function SepayQrPanel({ payment }: { payment: SepayPayment }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-[#1f2933]">
-            Quét mã SePay
+            Quét mã QR
           </p>
           <p className="mt-1 text-sm leading-6 text-[#625b50]">
-            Hệ thống đang chờ SePay gửi webhook xác nhận giao dịch.
+            Hệ thống đang chờ ngân hàng xác nhận giao dịch.
           </p>
         </div>
         <span className="pos-badge bg-amber-50 text-amber-700">
@@ -312,7 +312,7 @@ function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">
-              SePay đã xác nhận giao dịch
+              Ngân hàng đã xác nhận giao dịch
             </p>
             <h2 className="mt-2 text-3xl font-black leading-tight text-[#172027] lg:text-4xl">
               THANH TOÁN THÀNH CÔNG
@@ -619,20 +619,20 @@ export function CashierOrderPayment() {
       const result = (await response.json()) as SepayCreateResponse;
 
       if (!response.ok || !result.data) {
-        throw new Error(getErrorMessage(result, "Không thể tạo mã QR SePay."));
+        throw new Error(getErrorMessage(result, "Không thể tạo mã QR."));
       }
 
       setQrPayment(result.data);
       setPaymentSuccess(null);
       setMessage(
         result.message ??
-          "Đã tạo mã QR. Vui lòng chờ SePay xác nhận giao dịch.",
+          "Đã tạo mã QR. Vui lòng chờ ngân hàng xác nhận giao dịch.",
       );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Không thể tạo mã QR SePay.",
+          : "Không thể tạo mã QR.",
       );
     } finally {
       setIsPaying(false);

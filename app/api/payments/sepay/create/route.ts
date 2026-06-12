@@ -179,7 +179,7 @@ export async function POST(request: Request) {
 
     if (!sepayConfig) {
       return NextResponse.json(
-        { message: "Chưa cấu hình tài khoản ngân hàng SePay." },
+        { message: "Chưa cấu hình tài khoản ngân hàng nhận thanh toán QR." },
         { status: 500 },
       );
     }
@@ -280,7 +280,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Đã tạo mã QR thanh toán SePay.",
+        message: "Đã tạo mã QR thanh toán.",
         data: serializePayment(payment),
         qrUrl: payment.qrUrl,
       },
@@ -293,7 +293,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           message:
-            "Cơ sở dữ liệu chưa cập nhật bảng thanh toán SePay. Vui lòng chạy Prisma migration cho Supabase.",
+            "Cơ sở dữ liệu chưa cập nhật bảng thanh toán QR. Vui lòng chạy Prisma migration cho Supabase.",
         },
         { status: 500 },
       );
@@ -316,7 +316,7 @@ export async function POST(request: Request) {
     console.error(error);
 
     return NextResponse.json(
-      { message: "Không thể tạo thanh toán QR SePay." },
+      { message: "Không thể tạo thanh toán QR." },
       { status: 500 },
     );
   }
