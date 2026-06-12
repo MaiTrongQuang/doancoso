@@ -95,20 +95,15 @@ const paymentOptions: Array<{
   },
   {
     value: "BANK_TRANSFER",
-    label: "Chuyển khoản",
-    description: "Thu ngân xác nhận khách đã chuyển khoản.",
-  },
-  {
-    value: "QR_PAYMENT",
-    label: "QR ngân hàng",
+    label: "Thanh toán QR (SePay)",
     description: "Tạo mã QR SePay và tự xác nhận qua webhook ngân hàng.",
   },
 ];
 
 const paymentLabel: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Chuyển khoản",
-  QR_PAYMENT: "QR Payment",
+  BANK_TRANSFER: "Thanh toán QR (SePay)",
+  QR_PAYMENT: "Thanh toán QR (SePay)",
 };
 
 function getErrorMessage(value: unknown, fallback: string) {
@@ -141,8 +136,8 @@ function getPayButtonLabel({
   isPaying: boolean;
   paymentMethod: PaymentMethod;
 }) {
-  if (paymentMethod === "QR_PAYMENT") {
-    return isPaying ? "Đang tạo QR..." : "Thanh toán QR ngân hàng";
+  if (paymentMethod === "BANK_TRANSFER") {
+    return isPaying ? "Đang tạo QR..." : "Tạo mã QR (SePay)";
   }
 
   return isPaying ? "Đang thanh toán..." : "Thanh toán";
@@ -170,7 +165,7 @@ function SepayQrPanel({ payment }: { payment: SepayPayment }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-[#1f2933]">
-            Quét QR ngân hàng
+            Quét mã SePay
           </p>
           <p className="mt-1 text-sm leading-6 text-[#625b50]">
             Hệ thống đang chờ SePay gửi webhook xác nhận giao dịch.
@@ -482,7 +477,7 @@ export function CashierOrderPayment() {
       return;
     }
 
-    if (paymentMethod === "QR_PAYMENT") {
+    if (paymentMethod === "BANK_TRANSFER") {
       await handleCreateQrPayment();
       return;
     }
