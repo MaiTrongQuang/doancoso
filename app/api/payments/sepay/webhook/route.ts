@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   DiningSessionStatus,
   OrderStatus,
@@ -87,30 +87,15 @@ async function rememberWebhookDebugData({
   });
 }
 
-export async function POST(request: Request) {
-  const authorization = getAuthorizedApiKey(request);
-
-  if (!authorization.ok) {
-    return authorization.response;
-  }
-
-  const body = await request.json().catch(() => null);
+async function processSepayWebhook(body: unknown) {
   const payload = getPayloadRecord(body);
 
   if (!payload) {
-    return NextResponse.json(
-      { message: "Payload SePay không hợp lệ." },
-      { status: 400 },
-    );
+    return;
   }
 
   if (!isIncomingSepayTransfer(payload.transferType)) {
-    return NextResponse.json({
-      message: "Webhook không phải giao dịch tiền vào, đã bỏ qua.",
-      data: {
-        ignored: true,
-      },
-    });
+    return;
   }
 
   const transferCode = extractSepayTransferCode({
@@ -119,21 +104,13 @@ export async function POST(request: Request) {
   });
 
   if (!transferCode) {
-    return NextResponse.json({
-      message: "Không tìm thấy mã thanh toán trong webhook.",
-      data: {
-        ignored: true,
-      },
-    });
+    return;
   }
 
   const transferAmount = normalizeSepayAmount(payload.transferAmount);
 
   if (transferAmount === null) {
-    return NextResponse.json(
-      { message: "Số tiền giao dịch SePay không hợp lệ." },
-      { status: 400 },
-    );
+    return;
   }
 
   const rawData = toJsonValue(body);
@@ -166,12 +143,7 @@ export async function POST(request: Request) {
   });
 
   if (!payment) {
-    return NextResponse.json({
-      message: "Không tìm thấy thanh toán tương ứng, đã bỏ qua.",
-      data: {
-        ignored: true,
-      },
-    });
+    return;
   }
 
   if (!canConfirmSepayPayment(payment.status)) {
@@ -208,182 +180,191 @@ export async function POST(request: Request) {
     });
   }
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const currentPayment = await tx.payment.findUnique({
-        where: {
-          id: payment.id,
-        },
-        include: {
-          order: {
-            include: {
-              session: {
-                include: {
-                  orders: {
-                    select: {
-                      id: true,
-                      status: true,
-                    },
+  await prisma.$transaction(async (tx) => {
+    const currentPayment = await tx.payment.findUnique({
+      where: {
+        id: payment.id,
+      },
+      include: {
+        order: {
+          include: {
+            session: {
+              include: {
+                orders: {
+                  select: {
+                    id: true,
+                    status: true,
                   },
                 },
               },
             },
           },
         },
-      });
+      },
+    });
 
-      if (!currentPayment) {
-        throw new Error("Payment disappeared while processing webhook.");
-      }
+    if (!currentPayment) {
+      throw new Error("Payment disappeared while processing webhook.");
+    }
 
-      if (!canConfirmSepayPayment(currentPayment.status)) {
-        await tx.payment.update({
-          where: {
-            id: currentPayment.id,
-          },
-          data: {
-            rawData,
-            referenceCode: referenceCode ?? currentPayment.referenceCode,
-            sepayTransactionId:
-              sepayTransactionId ?? currentPayment.sepayTransactionId,
-          },
-        });
-
-        return {
-          ignored: true,
-          invoiceId: null,
-          paymentId: currentPayment.id,
-          paymentStatus: currentPayment.status,
-        };
-      }
-
+    if (!canConfirmSepayPayment(currentPayment.status)) {
       await tx.payment.update({
         where: {
           id: currentPayment.id,
         },
         data: {
-          paidAt: currentPayment.paidAt ?? new Date(),
           rawData,
           referenceCode: referenceCode ?? currentPayment.referenceCode,
           sepayTransactionId:
             sepayTransactionId ?? currentPayment.sepayTransactionId,
-          status: PaymentStatus.PAID,
         },
       });
 
-      const billOrderIds =
-        currentPayment.order.session?.orders
-          .filter((order) => order.status !== OrderStatus.CANCELLED)
-          .map((order) => order.id) ?? [currentPayment.orderId];
+      return;
+    }
 
-      await tx.order.updateMany({
+    await tx.payment.update({
+      where: {
+        id: currentPayment.id,
+      },
+      data: {
+        paidAt: currentPayment.paidAt ?? new Date(),
+        rawData,
+        referenceCode: referenceCode ?? currentPayment.referenceCode,
+        sepayTransactionId:
+          sepayTransactionId ?? currentPayment.sepayTransactionId,
+        status: PaymentStatus.PAID,
+      },
+    });
+
+    const billOrderIds =
+      currentPayment.order.session?.orders
+        .filter((order) => order.status !== OrderStatus.CANCELLED)
+        .map((order) => order.id) ?? [currentPayment.orderId];
+
+    await tx.order.updateMany({
+      where: {
+        id: {
+          in: billOrderIds,
+        },
+      },
+      data: {
+        status: OrderStatus.PAID,
+      },
+    });
+
+    if (currentPayment.order.sessionId) {
+      await tx.diningSession.update({
         where: {
-          id: {
-            in: billOrderIds,
-          },
+          id: currentPayment.order.sessionId,
         },
         data: {
-          status: OrderStatus.PAID,
+          closedAt: new Date(),
+          status: DiningSessionStatus.CLOSED,
         },
       });
+    }
 
-      if (currentPayment.order.sessionId) {
-        await tx.diningSession.update({
-          where: {
-            id: currentPayment.order.sessionId,
-          },
-          data: {
-            closedAt: new Date(),
-            status: DiningSessionStatus.CLOSED,
-          },
-        });
-      }
+    const remainingActiveOrders = await tx.order.count({
+      where: {
+        tableId: currentPayment.order.tableId,
+        status: {
+          in: [...activeTableOrderStatuses],
+        },
+      },
+    });
 
-      const remainingActiveOrders = await tx.order.count({
+    if (remainingActiveOrders === 0) {
+      await tx.cafeTable.update({
         where: {
-          tableId: currentPayment.order.tableId,
-          status: {
-            in: [...activeTableOrderStatuses],
-          },
+          id: currentPayment.order.tableId,
+        },
+        data: {
+          status: TableStatus.AVAILABLE,
         },
       });
+    }
 
-      if (remainingActiveOrders === 0) {
-        await tx.cafeTable.update({
-          where: {
-            id: currentPayment.order.tableId,
+    const existingInvoice = await tx.invoice.findFirst({
+      where: {
+        OR: [
+          {
+            orderId: currentPayment.orderId,
           },
-          data: {
-            status: TableStatus.AVAILABLE,
-          },
-        });
-      }
+          ...(currentPayment.order.sessionId
+            ? [
+                {
+                  sessionId: currentPayment.order.sessionId,
+                },
+              ]
+            : []),
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
 
-      const existingInvoice = await tx.invoice.findFirst({
+    if (existingInvoice) {
+      await tx.invoice.update({
         where: {
-          OR: [
-            {
-              orderId: currentPayment.orderId,
-            },
-            ...(currentPayment.order.sessionId
-              ? [
-                  {
-                    sessionId: currentPayment.order.sessionId,
-                  },
-                ]
-              : []),
-          ],
+          id: existingInvoice.id,
+        },
+        data: {
+          paymentMethod: PaymentMethod.QR_PAYMENT,
+          totalAmount: currentPayment.amount,
         },
         select: {
           id: true,
         },
       });
 
-      const invoice = existingInvoice
-        ? await tx.invoice.update({
-            where: {
-              id: existingInvoice.id,
-            },
-            data: {
-              paymentMethod: PaymentMethod.QR_PAYMENT,
-              totalAmount: currentPayment.amount,
-            },
-            select: {
-              id: true,
-            },
-          })
-        : await tx.invoice.create({
-            data: {
-              orderId: currentPayment.orderId,
-              paymentMethod: PaymentMethod.QR_PAYMENT,
-              sessionId: currentPayment.order.sessionId,
-              totalAmount: currentPayment.amount,
-            },
-            select: {
-              id: true,
-            },
-          });
+      return;
+    }
 
-      return {
-        ignored: false,
-        invoiceId: invoice.id,
-        paymentId: currentPayment.id,
-        paymentStatus: PaymentStatus.PAID,
-      };
-    });
-
-    return NextResponse.json({
-      message: "Đã xác nhận thanh toán SePay.",
+    await tx.invoice.create({
       data: {
-        ...result,
+        orderId: currentPayment.orderId,
+        paymentMethod: PaymentMethod.QR_PAYMENT,
+        sessionId: currentPayment.order.sessionId,
+        totalAmount: currentPayment.amount,
+      },
+      select: {
+        id: true,
       },
     });
-  } catch (error) {
-    console.error(error);
+  });
+}
 
+export async function POST(request: Request) {
+  const authorization = getAuthorizedApiKey(request);
+
+  if (!authorization.ok) {
+    return authorization.response;
+  }
+
+  const body = await request.json().catch(() => null);
+  const payload = getPayloadRecord(body);
+
+  if (!payload) {
     return NextResponse.json(
-      { message: "Không thể xử lý webhook SePay." },
-      { status: 500 },
+      { message: "Payload SePay không hợp lệ." },
+      { status: 400 },
     );
   }
+
+  after(async () => {
+    try {
+      await processSepayWebhook(body);
+    } catch (error) {
+      console.error("Không thể xử lý webhook SePay sau khi đã nhận.", error);
+    }
+  });
+
+  return NextResponse.json({
+    message: "Đã nhận webhook SePay.",
+    data: {
+      accepted: true,
+    },
+  });
 }
