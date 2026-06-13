@@ -7,20 +7,64 @@ export default async function Home() {
   const accessModel = getHomeAccessModel(session?.role ?? null);
   const customerRoute = accessModel.customerRoutes[0];
   const primaryInternalRoute = accessModel.internalGroups[0]?.routes[0];
+  const workAreaCards = session
+    ? [
+        {
+          accent: "#a45700",
+          cta: customerRoute.label,
+          description:
+            "Mở menu QR, chọn món, ghi chú và gửi đơn ngay tại bàn.",
+          eyebrow: "Customer",
+          href: customerRoute.href,
+          image: "/images/menu/all.svg",
+          title: "Khách gọi món",
+        },
+        ...accessModel.internalGroups.map((group) => ({
+          accent: group.accent,
+          cta: group.cta,
+          description: group.description,
+          eyebrow: group.eyebrow,
+          href: group.routes[0].href,
+          image: group.image,
+          title: group.title,
+        })),
+      ]
+    : [
+        {
+          accent: "#a45700",
+          cta: customerRoute.label,
+          description:
+            "Mở menu QR, chọn món, ghi chú và gửi đơn ngay tại bàn.",
+          eyebrow: "Customer",
+          href: customerRoute.href,
+          image: "/images/menu/all.svg",
+          title: "Khách gọi món",
+        },
+        {
+          accent: "#2f5d50",
+          cta: "Đăng nhập hệ thống",
+          description:
+            "Quản trị, nhân viên và thu ngân sẽ mở đúng theo quyền tài khoản.",
+          eyebrow: "Internal",
+          href: accessModel.loginHref,
+          image: "/images/menu/coffee.svg",
+          title: "Khu vực nhân sự",
+        },
+      ];
 
   return (
-    <main className="min-h-dvh bg-[#f5f1ea] text-[#1f2428]">
-      <section className="mx-auto grid min-h-dvh w-full max-w-7xl content-start gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8 lg:py-10">
-        <div className="flex flex-col justify-center gap-8">
-          <nav className="flex items-center justify-between gap-4">
+    <main className="min-h-[100svh] overflow-x-hidden bg-[#f5f1ea] text-[#1f2428]">
+      <section className="mx-auto grid w-full max-w-7xl content-start gap-6 px-4 pb-8 pt-3 sm:px-6 sm:pt-4 lg:min-h-[100svh] lg:grid-cols-[minmax(0,1fr)_400px] lg:px-8 lg:pb-10 lg:pt-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="flex flex-col justify-center gap-6 lg:min-h-[470px]">
+          <nav className="flex flex-col items-stretch gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
             <Link
-              className="inline-flex min-h-11 items-center rounded-full border border-[#d6cabc] bg-white/75 px-4 text-sm font-extrabold text-[#2f5d50] shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
+              className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-[#d6cabc] bg-white/80 px-4 text-sm font-extrabold text-[#2f5d50] shadow-sm transition hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
               href={primaryInternalRoute?.href ?? accessModel.loginHref}
             >
               {session ? "Vào khu vực làm việc" : "Đăng nhập hệ thống"}
             </Link>
             <Link
-              className="inline-flex min-h-11 items-center rounded-full bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] shadow-sm transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#885200]"
+              className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] shadow-sm transition hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#885200]"
               href={customerRoute.href}
             >
               {customerRoute.label}
@@ -28,13 +72,13 @@ export default async function Home() {
           </nav>
 
           <div>
-            <p className="text-sm font-extrabold uppercase text-[#2f5d50]">
+            <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#2f5d50] sm:text-sm">
               Đồ án cơ sở công nghệ phần mềm
             </p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-extrabold leading-tight text-[#182027] sm:text-5xl lg:text-6xl">
+            <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-[1.04] text-[#182027] text-balance min-[380px]:text-4xl sm:text-5xl lg:text-[4.25rem]">
               Cafe POS QR Order
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-[#60584e] sm:text-lg">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[#60584e] text-pretty sm:text-lg sm:leading-8">
               Một không gian điều phối cho quán cà phê: khách gọi món bằng QR,
               nhân viên nhận đơn, thu ngân thanh toán và quản trị theo dõi toàn
               bộ dữ liệu vận hành.
@@ -48,7 +92,7 @@ export default async function Home() {
               ["POS", "khu vực nội bộ"],
             ].map(([value, label]) => (
               <div
-                className="border-l-4 border-[#ff9f0a] bg-white/70 px-4 py-3 shadow-sm"
+                className="border-l-4 border-[#ff9f0a] bg-white/72 px-4 py-3 shadow-sm"
                 key={label}
               >
                 <p className="text-2xl font-extrabold tabular-nums text-[#182027]">
@@ -60,7 +104,7 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="relative min-h-[430px] overflow-hidden rounded-[28px] border border-[#d6cabc] bg-[#182027] p-5 text-white shadow-[0_24px_70px_rgba(31,36,40,0.22)]">
+        <div className="relative min-h-[360px] overflow-hidden rounded-[24px] border border-[#d6cabc] bg-[#182027] p-5 text-white shadow-[0_22px_54px_rgba(31,36,40,0.18)] sm:min-h-[390px] lg:min-h-[470px]">
           <div
             aria-label="Ảnh đồ uống NaNa Cafe"
             className="absolute inset-0 opacity-45"
@@ -84,14 +128,14 @@ export default async function Home() {
               </span>
             </div>
 
-            <div className="grid gap-3">
+            <div className="grid gap-3 pb-1">
               {[
                 ["Bàn 1", "Khách đang chọn món", "QR"],
                 ["Bếp", "Có đơn mới cần xác nhận", "Staff"],
                 ["Thu ngân", "Theo dõi thanh toán", "Pay"],
               ].map(([title, detail, tag]) => (
                 <div
-                  className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-2xl border border-white/12 bg-white/12 p-4 backdrop-blur"
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-2xl border border-white/12 bg-white/12 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur"
                   key={title}
                 >
                   <div>
@@ -110,149 +154,67 @@ export default async function Home() {
         </div>
 
         <section className="lg:col-span-2">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm font-extrabold uppercase text-[#2f5d50]">
+          <div className="mb-4 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.75fr)] lg:items-end">
+            <div className="max-w-2xl">
+              <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#2f5d50]">
                 Lối vào hợp lệ
               </p>
-              <h2 className="mt-1 text-2xl font-extrabold text-[#182027]">
+              <h2 className="mt-1 text-2xl font-extrabold leading-tight text-[#182027] sm:text-3xl">
                 {session
                   ? "Khu vực làm việc theo tài khoản"
                   : "Khách gọi món hoặc nhân sự đăng nhập"}
               </h2>
             </div>
-            <p className="max-w-xl text-sm leading-6 text-[#60584e]">
+            <p className="max-w-2xl text-sm leading-6 text-[#60584e] lg:text-right">
               Trang public chỉ mở luồng gọi món cho khách. Các khu vực quản trị,
               nhân viên và thu ngân chỉ xuất hiện sau khi đăng nhập đúng quyền.
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-            <section className="flex min-h-[280px] flex-col rounded-[20px] border border-[#d6cabc] bg-white p-4 shadow-[0_14px_34px_rgba(31,36,40,0.08)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-extrabold uppercase text-[#a45700]">
-                    Customer
-                  </p>
-                  <h3 className="mt-2 text-2xl font-extrabold text-[#182027]">
-                    Khách gọi món
-                  </h3>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className="h-12 w-12 rounded-2xl border border-[#eadfd3] bg-[#fff9f0]"
-                  style={{
-                    backgroundImage: 'url("/images/menu/all.svg")',
-                    backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat",
-                    backgroundSize: "28px 28px",
-                  }}
-                />
-              </div>
-
-              <p className="mt-4 text-sm leading-6 text-[#60584e]">
-                Luồng public dành cho khách tại bàn: mở menu QR, chọn món,
-                ghi chú và gửi đơn mà không cần tài khoản nội bộ.
-              </p>
-
-              <Link
-                className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-extrabold text-white transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
-                href={customerRoute.href}
-                style={{ backgroundColor: "#a45700" }}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {workAreaCards.map((card) => (
+              <section
+                key={card.title}
+                className="flex min-h-[260px] flex-col rounded-[18px] border border-[#d8cdbc] bg-white/90 p-4 shadow-[0_12px_30px_rgba(31,36,40,0.07)]"
               >
-                {customerRoute.label}
-              </Link>
-            </section>
-
-            <section className="rounded-[20px] border border-[#d6cabc] bg-white p-4 shadow-[0_14px_34px_rgba(31,36,40,0.08)]">
-              {!session ? (
-                <div className="flex h-full min-h-[280px] flex-col justify-between gap-6">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-extrabold uppercase text-[#2f5d50]">
-                      Internal
-                    </p>
-                    <h3 className="mt-2 text-2xl font-extrabold text-[#182027]">
-                      Khu vực nhân sự
-                    </h3>
-                    <p className="mt-4 max-w-xl text-sm leading-6 text-[#60584e]">
-                      Quản trị, nhân viên và thu ngân là dữ liệu nội bộ. Vui
-                      lòng đăng nhập để hệ thống hiển thị đúng khu vực theo vai
-                      trò tài khoản.
-                    </p>
-                  </div>
-                  <Link
-                    className="inline-flex min-h-11 w-fit items-center justify-center rounded-xl bg-[#2f5d50] px-5 text-sm font-extrabold text-white transition hover:bg-[#24483e] focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
-                    href={accessModel.loginHref}
-                  >
-                    Đăng nhập để xem khu vực nội bộ
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {accessModel.internalGroups.map((group) => (
-                    <section
-                      key={group.title}
-                      className="flex min-h-[300px] flex-col rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-4"
+                    <p
+                      className="text-xs font-extrabold uppercase tracking-[0.06em]"
+                      style={{ color: card.accent }}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p
-                            className="text-xs font-extrabold uppercase"
-                            style={{ color: group.accent }}
-                          >
-                            {group.eyebrow}
-                          </p>
-                          <h3 className="mt-2 text-xl font-extrabold text-[#182027]">
-                            {group.title}
-                          </h3>
-                        </div>
-                        <span
-                          aria-hidden="true"
-                          className="h-11 w-11 rounded-2xl border border-[#eadfd3] bg-[#fff9f0]"
-                          style={{
-                            backgroundImage: `url("${group.image}")`,
-                            backgroundPosition: "center",
-                            backgroundRepeat: "no-repeat",
-                            backgroundSize: "26px 26px",
-                          }}
-                        />
-                      </div>
-
-                      <p className="mt-4 text-sm leading-6 text-[#60584e]">
-                        {group.description}
-                      </p>
-
-                      <Link
-                        className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-extrabold text-white transition hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
-                        href={group.routes[0].href}
-                        style={{ backgroundColor: group.accent }}
-                      >
-                        {group.cta}
-                      </Link>
-
-                      {group.routes.length > 1 ? (
-                        <div className="mt-4 flex flex-col gap-2 border-t border-[#eadfd3] pt-4">
-                          {group.routes.map((route) => (
-                            <Link
-                              key={route.href}
-                              href={route.href}
-                              className="flex min-h-10 items-center justify-between rounded-xl border border-[#eadfd3] px-3 text-sm font-bold text-[#31574e] transition hover:border-[#2f5d50] hover:bg-[#f4fbf7] focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
-                            >
-                              <span>{route.label}</span>
-                              <span aria-hidden="true">›</span>
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-auto border-t border-[#eadfd3] pt-4 text-sm font-bold text-[#7a7066]">
-                          Một lối vào chính cho ca làm việc này.
-                        </p>
-                      )}
-                    </section>
-                  ))}
+                      {card.eyebrow}
+                    </p>
+                    <h3 className="mt-2 text-xl font-extrabold leading-tight text-[#182027]">
+                      {card.title}
+                    </h3>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="h-11 w-11 shrink-0 rounded-2xl border border-[#eadfd3] bg-[#fff9f0]"
+                    style={{
+                      backgroundImage: `url("${card.image}")`,
+                      backgroundPosition: "center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "26px 26px",
+                    }}
+                  />
                 </div>
-              )}
-            </section>
+
+                <p className="mt-4 text-sm leading-6 text-[#60584e]">
+                  {card.description}
+                </p>
+
+                <Link
+                  className="mt-auto inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-extrabold text-white transition hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#2f5d50]"
+                  href={card.href}
+                  style={{ backgroundColor: card.accent }}
+                >
+                  {card.cta}
+                </Link>
+
+              </section>
+            ))}
           </div>
         </section>
       </section>

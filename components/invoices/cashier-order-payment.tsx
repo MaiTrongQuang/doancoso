@@ -13,6 +13,7 @@ import {
 import { removeSettledBillOrders } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
 import { getInvoicePrintHref } from "@/lib/invoice-links";
+import { getPaymentPollingDelay } from "@/lib/payment-polling";
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
 
@@ -506,9 +507,33 @@ export function CashierOrderPayment() {
 
     let isMounted = true;
     let isPolling = false;
+    let isSettled = false;
+    let timeoutId: number | null = null;
+    const pollingStartedAt = Date.now();
+
+    function clearScheduledPoll() {
+      if (timeoutId === null) {
+        return;
+      }
+
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+
+    function scheduleNextPoll() {
+      if (!isMounted || isSettled) {
+        return;
+      }
+
+      clearScheduledPoll();
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        void pollPaymentStatus();
+      }, getPaymentPollingDelay(Date.now() - pollingStartedAt));
+    }
 
     async function pollPaymentStatus() {
-      if (document.visibilityState !== "visible" || isPolling) {
+      if (!isMounted || document.visibilityState !== "visible" || isPolling) {
         return;
       }
 
@@ -538,6 +563,7 @@ export function CashierOrderPayment() {
           result.data.paymentStatus === "PAID" ||
           result.data.orderStatus === "PAID"
         ) {
+          isSettled = true;
           const settledBill = {
             orderId: result.data.order.id,
             sessionId: result.data.order.sessionId,
@@ -575,23 +601,24 @@ export function CashierOrderPayment() {
         }
       } finally {
         isPolling = false;
+        scheduleNextPoll();
       }
     }
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
+        clearScheduledPoll();
         void pollPaymentStatus();
       }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    pollPaymentStatus();
-    const intervalId = window.setInterval(pollPaymentStatus, 3000);
+    void pollPaymentStatus();
 
     return () => {
       isMounted = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.clearInterval(intervalId);
+      clearScheduledPoll();
     };
   }, [pollingOrderId]);
 
