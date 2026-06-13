@@ -1,4 +1,4 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   DiningSessionStatus,
   OrderStatus,
@@ -353,13 +353,20 @@ export async function POST(request: Request) {
     );
   }
 
-  after(async () => {
-    try {
-      await processSepayWebhook(body);
-    } catch (error) {
-      console.error("Không thể xử lý webhook SePay sau khi đã nhận.", error);
+  try {
+    const processingResponse = await processSepayWebhook(body);
+
+    if (processingResponse) {
+      return processingResponse;
     }
-  });
+  } catch (error) {
+    console.error("Không thể xử lý webhook SePay.", error);
+
+    return NextResponse.json(
+      { message: "Không thể xử lý webhook SePay." },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({
     message: "Đã nhận webhook SePay.",
