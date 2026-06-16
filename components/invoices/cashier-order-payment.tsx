@@ -28,6 +28,7 @@ type CashierOrder = {
   totalAmount: number;
   note: string | null;
   createdAt: string;
+  updatedAt: string;
   table: {
     id: number;
     name: string;
@@ -54,6 +55,11 @@ type OrderStatusResponse = {
       totalAmount: number;
     } | null;
   };
+};
+
+type OrderDetailResponse = {
+  message?: string;
+  data?: CashierOrder;
 };
 
 type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED";
@@ -100,6 +106,11 @@ type PaymentSuccessDetails = {
   methodLabel: string;
   orderLabel: string;
   tableName: string;
+};
+
+type DraftOrderItem = {
+  note: string;
+  quantity: number;
 };
 
 const paymentOptions: Array<{
@@ -172,6 +183,30 @@ function getPayButtonLabel({
   isPaying: boolean;
 }) {
   return isPaying ? "Đang xác nhận..." : "Xác nhận đã thanh toán";
+}
+
+function normalizeDraftText(value: string | null) {
+  return value?.trim() ?? "";
+}
+
+function clampDraftQuantity(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), 0), 99);
+}
+
+function buildDraftItems(order: CashierOrder) {
+  return Object.fromEntries(
+    order.items.map((item) => [
+      item.id,
+      {
+        note: item.note ?? "",
+        quantity: item.quantity,
+      },
+    ]),
+  );
 }
 
 async function fetchPendingOrders() {
@@ -380,14 +415,49 @@ export function CashierOrderPayment() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOrderDetail, setIsLoadingOrderDetail] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [pendingCancelOrder, setPendingCancelOrder] =
     useState<CashierOrder | null>(null);
+  const [draftNote, setDraftNote] = useState("");
+  const [draftItems, setDraftItems] = useState<Record<number, DraftOrderItem>>({});
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) ?? null,
     [orders, selectedOrderId],
   );
+  const draftTotalAmount = useMemo(() => {
+    if (!selectedOrder) {
+      return 0;
+    }
+
+    return selectedOrder.items.reduce((total, item) => {
+      const draftItem = draftItems[item.id];
+      return total + item.price * (draftItem?.quantity ?? item.quantity);
+    }, 0);
+  }, [draftItems, selectedOrder]);
+  const hasDraftChanges = useMemo(() => {
+    if (!selectedOrder) {
+      return false;
+    }
+
+    if (draftNote.trim() !== normalizeDraftText(selectedOrder.note)) {
+      return true;
+    }
+
+    return selectedOrder.items.some((item) => {
+      const draftItem = draftItems[item.id];
+
+      if (!draftItem) {
+        return false;
+      }
+
+      return (
+        draftItem.quantity !== item.quantity ||
+        draftItem.note.trim() !== normalizeDraftText(item.note)
+      );
+    });
+  }, [draftItems, draftNote, selectedOrder]);
   const pollingOrderId =
     qrPayment?.status === "PENDING" ? qrPayment.orderId : null;
 
@@ -470,6 +540,8 @@ export function CashierOrderPayment() {
             order.id === orderDetail.id ? orderDetail : order,
           ),
         );
+        setDraftItems(buildDraftItems(orderDetail));
+        setDraftNote(orderDetail.note ?? "");
       })
       .catch((caughtError) => {
         if (isMounted) {
@@ -619,6 +691,11 @@ export function CashierOrderPayment() {
       return;
     }
 
+    if (hasDraftChanges) {
+      setError("Vui lòng lưu thay đổi đơn trước khi xác nhận thanh toán.");
+      return;
+    }
+
     setMessage("");
     setError("");
     setPaymentSuccess(null);
@@ -655,6 +732,8 @@ export function CashierOrderPayment() {
       });
       setQrPayment(null);
       setSelectedOrderId(null);
+      setDraftItems({});
+      setDraftNote("");
       setIsLoadingOrderDetail(false);
       setOrders((currentOrders) =>
         applyCashierOrderStatusPatch(
@@ -672,6 +751,87 @@ export function CashierOrderPayment() {
       );
     } finally {
       setIsPaying(false);
+    }
+  }
+
+  function updateDraftItemQuantity(itemId: number, quantity: number) {
+    setDraftItems((currentItems) => ({
+      ...currentItems,
+      [itemId]: {
+        note: currentItems[itemId]?.note ?? "",
+        quantity: clampDraftQuantity(quantity),
+      },
+    }));
+  }
+
+  function updateDraftItemNote(itemId: number, note: string) {
+    setDraftItems((currentItems) => ({
+      ...currentItems,
+      [itemId]: {
+        note,
+        quantity:
+          currentItems[itemId]?.quantity ??
+          selectedOrder?.items.find((item) => item.id === itemId)?.quantity ??
+          1,
+      },
+    }));
+  }
+
+  async function handleSaveOrderChanges() {
+    if (!selectedOrder) {
+      setError("Vui lòng chọn đơn cần cập nhật.");
+      return;
+    }
+
+    if (draftTotalAmount <= 0) {
+      setError("Đơn phải còn ít nhất một món.");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setPaymentSuccess(null);
+    setIsSavingOrder(true);
+
+    try {
+      const response = await fetch(`/api/orders/${selectedOrder.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: selectedOrder.items.map((item) => ({
+            id: item.id,
+            note: draftItems[item.id]?.note ?? "",
+            quantity: draftItems[item.id]?.quantity ?? item.quantity,
+          })),
+          note: draftNote,
+        }),
+      });
+      const result = (await response.json()) as OrderDetailResponse;
+
+      if (!response.ok || !result.data) {
+        throw new Error(
+          getErrorMessage(result, "Không thể cập nhật đơn chờ thanh toán."),
+        );
+      }
+
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order.id === result.data!.id ? result.data! : order,
+        ),
+      );
+      setDraftItems(buildDraftItems(result.data));
+      setDraftNote(result.data.note ?? "");
+      setMessage(result.message ?? "Đã cập nhật đơn chờ thanh toán.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể cập nhật đơn chờ thanh toán.",
+      );
+    } finally {
+      setIsSavingOrder(false);
     }
   }
 
@@ -715,6 +875,8 @@ export function CashierOrderPayment() {
 
       if (selectedOrderId === orderToCancel.id) {
         setSelectedOrderId(null);
+        setDraftItems({});
+        setDraftNote("");
       }
 
       setQrPayment(null);
@@ -786,6 +948,8 @@ export function CashierOrderPayment() {
 	                  onClick={() => {
 	                    setSelectedOrderId(order.id);
 	                    setIsLoadingOrderDetail(order.items.length === 0);
+                    setDraftItems(buildDraftItems(order));
+                    setDraftNote(order.note ?? "");
 	                    setQrPayment(null);
                     setPaymentSuccess(null);
                     setMessage("");
@@ -850,11 +1014,11 @@ export function CashierOrderPayment() {
                 </div>
 
                 <div className="overflow-x-auto rounded-2xl border border-[#eadfce]">
-                  <table className="pos-table min-w-[620px]">
+                  <table className="pos-table min-w-[760px]">
                     <thead>
                       <tr>
                         <th className="px-4 py-3">Món</th>
-                        <th className="px-4 py-3 text-right">Số lượng</th>
+                        <th className="px-4 py-3 text-center">Số lượng</th>
                         <th className="px-4 py-3 text-right">Đơn giá</th>
                         <th className="px-4 py-3 text-right">Thành tiền</th>
                       </tr>
@@ -881,15 +1045,76 @@ export function CashierOrderPayment() {
                                 {item.note}
                               </p>
                             ) : null}
+                            <input
+                              className="mt-2 min-h-10 w-full rounded-lg border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                              onChange={(event) =>
+                                updateDraftItemNote(item.id, event.target.value)
+                              }
+                              placeholder="Ghi chú món..."
+                              type="text"
+                              value={draftItems[item.id]?.note ?? ""}
+                            />
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold text-[#3b352d]">
-                            {item.quantity}
+                          <td className="px-4 py-3 text-center font-semibold text-[#3b352d]">
+                            <div className="inline-flex overflow-hidden rounded-lg border border-[#dac3ad] bg-white">
+                              <button
+                                className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
+                                onClick={() =>
+                                  updateDraftItemQuantity(
+                                    item.id,
+                                    (draftItems[item.id]?.quantity ??
+                                      item.quantity) - 1,
+                                  )
+                                }
+                                type="button"
+                              >
+                                -
+                              </button>
+                              <input
+                                className="h-10 w-12 border-x border-[#dac3ad] text-center text-sm font-black outline-none"
+                                min={0}
+                                max={99}
+                                onChange={(event) =>
+                                  updateDraftItemQuantity(
+                                    item.id,
+                                    Number(event.target.value),
+                                  )
+                                }
+                                type="number"
+                                value={
+                                  draftItems[item.id]?.quantity ?? item.quantity
+                                }
+                              />
+                              <button
+                                className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
+                                onClick={() =>
+                                  updateDraftItemQuantity(
+                                    item.id,
+                                    (draftItems[item.id]?.quantity ??
+                                      item.quantity) + 1,
+                                  )
+                                }
+                                type="button"
+                              >
+                                +
+                              </button>
+                            </div>
+                            {(draftItems[item.id]?.quantity ?? item.quantity) ===
+                            0 ? (
+                              <p className="mt-1 text-xs font-bold text-red-700">
+                                Sẽ bỏ món
+                              </p>
+                            ) : null}
                           </td>
                           <td className="px-4 py-3 text-right text-[#3b352d]">
                             {formatMoney(item.price)}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-[#2f5d50]">
-                            {formatMoney(item.price * item.quantity)}
+                            {formatMoney(
+                              item.price *
+                                (draftItems[item.id]?.quantity ??
+                                  item.quantity),
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -898,12 +1123,35 @@ export function CashierOrderPayment() {
                 </div>
 
                 <div className="rounded-2xl bg-[#f8f3ea] p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#6d645a]">
+                  <label className="flex flex-col gap-2 text-sm font-bold text-[#3b352d]">
                     Ghi chú đơn
-                  </p>
-                  <p className="mt-1 text-sm text-[#3b352d]">
-                    {selectedOrder.note || "Không có ghi chú."}
-                  </p>
+                    <textarea
+                      className="min-h-24 rounded-xl border border-[#dac3ad] bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                      onChange={(event) => setDraftNote(event.target.value)}
+                      placeholder="Ghi chú cho bếp hoặc phục vụ..."
+                      value={draftNote}
+                    />
+                  </label>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-[#625b50]">
+                      {hasDraftChanges
+                        ? "Có thay đổi chưa lưu."
+                        : "Đơn đang khớp với dữ liệu hiện tại."}
+                    </p>
+                    <button
+                      className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={
+                        !hasDraftChanges ||
+                        draftTotalAmount <= 0 ||
+                        isSavingOrder ||
+                        isPaying
+                      }
+                      onClick={handleSaveOrderChanges}
+                      type="button"
+                    >
+                      {isSavingOrder ? "Đang lưu..." : "Lưu thay đổi"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-[1fr_260px]">
@@ -940,12 +1188,22 @@ export function CashierOrderPayment() {
                         Tổng tiền
                       </span>
                       <span className="text-xl font-bold text-[#2f5d50]">
-                        {formatMoney(selectedOrder.totalAmount)}
+                        {formatMoney(draftTotalAmount)}
                       </span>
                     </div>
+                    {hasDraftChanges ? (
+                      <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-700">
+                        Lưu thay đổi trước khi xác nhận thanh toán.
+                      </p>
+                    ) : null}
                     <button
                       className="pos-button-primary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isPaying}
+                      disabled={
+                        isPaying ||
+                        isSavingOrder ||
+                        hasDraftChanges ||
+                        draftTotalAmount <= 0
+                      }
                       onClick={handlePay}
                       type="button"
                     >
@@ -953,7 +1211,7 @@ export function CashierOrderPayment() {
                     </button>
                     <button
                       className="pos-button-danger mt-2 w-full disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isPaying || isCancelling}
+                      disabled={isPaying || isSavingOrder || isCancelling}
                       onClick={() => setPendingCancelOrder(selectedOrder)}
                       type="button"
                     >
