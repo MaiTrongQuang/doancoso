@@ -1,5 +1,10 @@
 import { OrderStatus, PaymentMethod, ProductStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  buildShiftRevenue,
+  createShiftRevenueMonthRange,
+  normalizeShiftRevenueMonth,
+} from "@/lib/shift-revenue";
 
 const vietnamOffsetMs = 7 * 60 * 60 * 1000;
 const dateKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -196,6 +201,8 @@ type RawDashboardSummary = {
   }>;
 };
 
+type DashboardShiftRevenue = ReturnType<typeof buildShiftRevenue>;
+
 function toNumber(value: unknown) {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
@@ -226,10 +233,12 @@ export function buildDashboardSummaryResult({
   dayBuckets,
   rawSummary,
   selectedDay,
+  shiftRevenue,
 }: {
   dayBuckets: DashboardDayBucket[];
   rawSummary: RawDashboardSummary;
   selectedDay: DashboardSelectedDay;
+  shiftRevenue: DashboardShiftRevenue;
 }) {
   const dailyRevenueByDate = new Map(
     rawSummary.dailyRevenue.map((item) => [item.date, item]),
@@ -270,6 +279,7 @@ export function buildDashboardSummaryResult({
         : 0,
     availableProducts: toNumber(rawSummary.availableProducts),
     totalTables: toNumber(rawSummary.totalTables),
+    shiftRevenue,
     dailyRevenue: dayBuckets.map((bucket) => {
       const rawBucket = dailyRevenueByDate.get(bucket.date);
 
@@ -341,13 +351,17 @@ export function buildDashboardSummaryResult({
 export async function getDashboardSummary({
   date,
   days = 7,
+  month,
 }: {
   date?: string | null;
   days?: number;
+  month?: string | null;
 } = {}) {
   const chartDays = normalizeDashboardDays(days);
   const todayDateKey = normalizeDashboardDate(null);
   const selectedDateKey = normalizeDashboardDate(date);
+  const selectedMonthKey = normalizeShiftRevenueMonth(month);
+  const selectedMonthRange = createShiftRevenueMonthRange(selectedMonthKey);
   const selectedRange = createDashboardDayRange(selectedDateKey);
   const chartStartDateKey = addDaysToDateKey(todayDateKey, -(chartDays - 1));
   const chartStart = createDashboardDayRange(chartStartDateKey).start;
@@ -365,7 +379,8 @@ export async function getDashboardSummary({
       paidOrderCount: 0,
     };
   });
-  const rows = await prisma.$queryRaw<Array<{ summary: RawDashboardSummary }>>`
+  const [rows, shiftInvoices] = await Promise.all([
+    prisma.$queryRaw<Array<{ summary: RawDashboardSummary }>>`
     SELECT jsonb_build_object(
       'todayRevenue',
         COALESCE((
@@ -612,8 +627,25 @@ export async function getDashboardSummary({
           ) recent
         ), '[]'::jsonb)
     ) AS summary
-  `;
+  `,
+    prisma.invoice.findMany({
+      where: {
+        paidAt: {
+          gte: selectedMonthRange.start,
+          lt: selectedMonthRange.end,
+        },
+      },
+      select: {
+        paidAt: true,
+        totalAmount: true,
+      },
+    }),
+  ]);
   const rawSummary = rows[0]?.summary ?? createEmptyRawDashboardSummary();
+  const shiftRevenue = buildShiftRevenue({
+    invoices: shiftInvoices,
+    month: selectedMonthKey,
+  });
 
   return buildDashboardSummaryResult({
     rawSummary:
@@ -624,5 +656,6 @@ export async function getDashboardSummary({
       isToday: selectedDateKey === todayDateKey,
       label: selectedRange.label,
     },
+    shiftRevenue,
   });
 }

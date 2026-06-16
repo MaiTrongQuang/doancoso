@@ -2,7 +2,14 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCategoryContextIds } from "./customer-order-navigation";
+import { customerAiSampleQuestions } from "@/lib/ai-insights";
 import { formatMoney } from "@/lib/format-money";
+import {
+  drinkOptionLevels,
+  formatOrderItemNoteWithOptions,
+  isCustomizableDrink,
+  type DrinkOptionLevel,
+} from "@/lib/order-item-options";
 
 type CustomerProduct = {
   id: number;
@@ -29,6 +36,8 @@ type CartItem = {
   product: CustomerProduct;
   quantity: number;
   note: string;
+  sugarLevel: DrinkOptionLevel | null;
+  iceLevel: DrinkOptionLevel | null;
 };
 
 type SubmitResponse = {
@@ -37,6 +46,20 @@ type SubmitResponse = {
     id: number;
     totalAmount: number;
     status: string;
+  };
+};
+
+type CustomerAiMessage = {
+  id: number;
+  role: "assistant" | "user";
+  content: string;
+};
+
+type CustomerAiResponse = {
+  message?: string;
+  data?: {
+    reply: string;
+    sampleQuestions: string[];
   };
 };
 
@@ -477,7 +500,20 @@ export function CustomerOrder({
   const [submittedOrder, setSubmittedOrder] = useState<
     SubmitResponse["data"] | null
   >(null);
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiInput, setAiInput] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [isAiSubmitting, setIsAiSubmitting] = useState(false);
+  const [aiMessages, setAiMessages] = useState<CustomerAiMessage[]>([
+    {
+      id: 1,
+      role: "assistant",
+      content:
+        "Bạn cần gợi ý món gì? Mình có thể tư vấn theo khẩu vị, món bán chạy hoặc đồ uống hợp thời điểm.",
+    },
+  ]);
   const categoryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const nextAiMessageIdRef = useRef(2);
 
   const orderedCategories = useMemo(() => {
     return [...categories]
@@ -721,6 +757,8 @@ export function CustomerOrder({
     setError("");
     setCart((current) => {
       const currentItem = current[product.id];
+      const categoryName = categoryById.get(product.categoryId)?.name ?? "";
+      const hasDrinkOptions = isCustomizableDrink(categoryName, product.name);
 
       return {
         ...current,
@@ -728,10 +766,12 @@ export function CustomerOrder({
           product,
           quantity: Math.min((currentItem?.quantity ?? 0) + 1, 99),
           note: currentItem?.note ?? "",
+          sugarLevel: currentItem?.sugarLevel ?? (hasDrinkOptions ? 100 : null),
+          iceLevel: currentItem?.iceLevel ?? (hasDrinkOptions ? 100 : null),
         },
       };
     });
-  }, []);
+  }, [categoryById]);
 
   function increaseQuantity(productId: number) {
     setCart((current) => {
@@ -801,6 +841,28 @@ export function CustomerOrder({
     });
   }
 
+  function updateItemOption(
+    productId: number,
+    field: "sugarLevel" | "iceLevel",
+    level: DrinkOptionLevel,
+  ) {
+    setCart((current) => {
+      const item = current[productId];
+
+      if (!item) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [productId]: {
+          ...item,
+          [field]: level,
+        },
+      };
+    });
+  }
+
   async function handleSubmit() {
     setMessage("");
     setError("");
@@ -827,7 +889,11 @@ export function CustomerOrder({
           items: cartItems.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
-            note: item.note,
+            note: formatOrderItemNoteWithOptions({
+              iceLevel: item.iceLevel,
+              note: item.note,
+              sugarLevel: item.sugarLevel,
+            }),
           })),
         }),
       });
@@ -851,6 +917,63 @@ export function CustomerOrder({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function askCustomerAi(nextQuestion?: string) {
+    const question = (nextQuestion ?? aiInput).trim();
+
+    if (!question || isAiSubmitting) {
+      return;
+    }
+
+    const userMessageId = nextAiMessageIdRef.current;
+    nextAiMessageIdRef.current += 1;
+    const userMessage: CustomerAiMessage = {
+      id: userMessageId,
+      role: "user",
+      content: question,
+    };
+
+    setAiMessages((current) => [...current, userMessage]);
+    setAiInput("");
+    setAiError("");
+    setIsAiSubmitting(true);
+
+    try {
+      const response = await fetch("/api/ai/customer-chat", {
+        body: JSON.stringify({
+          tableId: table.id,
+          message: question,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const result = (await response.json()) as CustomerAiResponse;
+
+      if (!response.ok || !result.data?.reply) {
+        throw new Error(getErrorMessage(result, "Không thể tư vấn món lúc này."));
+      }
+
+      setAiMessages((current) => [
+        ...current,
+        {
+          id: nextAiMessageIdRef.current,
+          role: "assistant",
+          content: result.data!.reply,
+        },
+      ]);
+      nextAiMessageIdRef.current += 1;
+    } catch (caughtError) {
+      setAiError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể tư vấn món lúc này.",
+      );
+    } finally {
+      setIsAiSubmitting(false);
     }
   }
 
@@ -886,6 +1009,12 @@ export function CustomerOrder({
           <div className="mt-4 grid gap-3">
             {cartItems.map((item) => {
               const visual = getProductVisual(item.product);
+              const categoryName =
+                categoryById.get(item.product.categoryId)?.name ?? "";
+              const hasDrinkOptions = isCustomizableDrink(
+                categoryName,
+                item.product.name,
+              );
 
               return (
                 <div
@@ -946,6 +1075,68 @@ export function CustomerOrder({
                     </span>
                   </div>
 
+                  {hasDrinkOptions ? (
+                    <div className="mt-3 grid gap-3 rounded-xl border border-[#eadfce] bg-white p-3">
+                      <div>
+                        <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#885200]">
+                          Đường
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {drinkOptionLevels.map((level) => (
+                            <button
+                              aria-pressed={item.sugarLevel === level}
+                              className={
+                                item.sugarLevel === level
+                                  ? "min-h-9 rounded-full bg-[#ff9f0a] px-3 text-xs font-extrabold text-[#2b1700]"
+                                  : "min-h-9 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
+                              }
+                              key={`sugar-${level}`}
+                              onClick={() =>
+                                updateItemOption(
+                                  item.product.id,
+                                  "sugarLevel",
+                                  level,
+                                )
+                              }
+                              type="button"
+                            >
+                              {level}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#885200]">
+                          Đá
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {drinkOptionLevels.map((level) => (
+                            <button
+                              aria-pressed={item.iceLevel === level}
+                              className={
+                                item.iceLevel === level
+                                  ? "min-h-9 rounded-full bg-[#2e3034] px-3 text-xs font-extrabold text-white"
+                                  : "min-h-9 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
+                              }
+                              key={`ice-${level}`}
+                              onClick={() =>
+                                updateItemOption(
+                                  item.product.id,
+                                  "iceLevel",
+                                  level,
+                                )
+                              }
+                              type="button"
+                            >
+                              {level}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <label className="mt-3 flex flex-col gap-2 text-sm font-semibold text-[#544433]">
                     Ghi chú món
                     <input
@@ -953,7 +1144,9 @@ export function CustomerOrder({
                       onChange={(event) =>
                         updateItemNote(item.product.id, event.target.value)
                       }
-                      placeholder="Ít đá, ít đường..."
+                      placeholder={
+                        hasDrinkOptions ? "Ví dụ: ít sữa..." : "Ví dụ: cắt nhỏ..."
+                      }
                       type="text"
                       value={item.note}
                     />
@@ -1208,8 +1401,107 @@ export function CustomerOrder({
         </div>
       ) : null}
 
+      {isAiOpen ? (
+        <div className="fixed inset-x-0 bottom-[76px] z-40 px-3">
+          <section className="mx-auto max-h-[70dvh] w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#dac3ad] bg-[#fffdf9] shadow-[0_18px_46px_rgba(46,48,52,0.24)]">
+            <div className="flex items-start justify-between gap-3 border-b border-[#eadfce] p-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#885200]">
+                  AI tư vấn
+                </p>
+                <h2 className="mt-1 text-lg font-extrabold text-[#1a1c1f]">
+                  Gợi ý món cho bạn
+                </h2>
+              </div>
+              <button
+                className="min-h-9 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433]"
+                onClick={() => setIsAiOpen(false)}
+                type="button"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="max-h-[38dvh] space-y-3 overflow-y-auto p-4">
+              {aiMessages.map((aiMessage) => (
+                <div
+                  className={
+                    aiMessage.role === "user"
+                      ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
+                      : "mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
+                  }
+                  key={aiMessage.id}
+                >
+                  {aiMessage.content}
+                </div>
+              ))}
+              {isAiSubmitting ? (
+                <div className="mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]">
+                  AI đang nghĩ món phù hợp...
+                </div>
+              ) : null}
+            </div>
+
+            <div className="border-t border-[#eadfce] p-4">
+              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                {customerAiSampleQuestions.map((question) => (
+                  <button
+                    className="min-h-9 shrink-0 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
+                    disabled={isAiSubmitting}
+                    key={question}
+                    onClick={() => askCustomerAi(question)}
+                    type="button"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+              {aiError ? (
+                <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700">
+                  {aiError}
+                </p>
+              ) : null}
+              <form
+                className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void askCustomerAi();
+                }}
+              >
+                <input
+                  className="min-h-11 rounded-xl border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                  disabled={isAiSubmitting}
+                  onChange={(event) => setAiInput(event.target.value)}
+                  placeholder="Hỏi AI tư vấn món..."
+                  type="text"
+                  value={aiInput}
+                />
+                <button
+                  className="min-h-11 rounded-xl bg-[#2e3034] px-4 text-sm font-extrabold text-white disabled:opacity-60"
+                  disabled={isAiSubmitting || !aiInput.trim()}
+                  type="submit"
+                >
+                  Gửi
+                </button>
+              </form>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <div className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5">
         <div className="mx-auto flex max-w-[430px] items-center gap-2 rounded-t-2xl border border-b-0 border-[#dac3ad] bg-[rgba(255,255,255,0.95)] p-1.5 shadow-[0_-10px_24px_rgba(46,48,52,0.12)] backdrop-blur-xl">
+          <button
+            className={
+              isAiOpen
+                ? "min-h-11 rounded-xl bg-[#2e3034] px-4 text-sm font-extrabold text-white transition focus:outline-none focus:ring-2 focus:ring-[#885200]"
+                : "min-h-11 rounded-xl border border-[#dac3ad] bg-white px-4 text-sm font-extrabold text-[#544433] transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
+            }
+            onClick={() => setIsAiOpen((current) => !current)}
+            type="button"
+          >
+            AI
+          </button>
           <button
             className="min-h-11 flex-1 rounded-xl border border-[#dac3ad] bg-white px-3 text-left transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
             onClick={openCartSheet}

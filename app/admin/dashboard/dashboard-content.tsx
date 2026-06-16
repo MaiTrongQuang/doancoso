@@ -61,6 +61,35 @@ type RecentInvoice = {
   };
 };
 
+type ShiftRevenueItem = {
+  key: string;
+  label: string;
+  startHour: number;
+  endHour: number;
+  revenue: number;
+  invoiceCount: number;
+  averageInvoiceValue: number;
+  bestDay: string | null;
+  bestDayLabel: string | null;
+  bestDayRevenue: number;
+};
+
+type ShiftRevenue = {
+  month: string;
+  monthLabel: string;
+  totalInvoiceCount: number;
+  totalRevenue: number;
+  shifts: ShiftRevenueItem[];
+};
+
+type AdminAiInsight = {
+  summary: string;
+  bestShifts: string[];
+  risks: string[];
+  recommendations: string[];
+  promotionIdeas: string[];
+};
+
 type DashboardSummary = {
   isSelectedToday: boolean;
   selectedDate: string;
@@ -77,6 +106,7 @@ type DashboardSummary = {
   topTables: TopTable[];
   orderStatusStats: OrderStatusStat[];
   recentInvoices: RecentInvoice[];
+  shiftRevenue: ShiftRevenue;
 };
 
 const periodOptions = [
@@ -135,7 +165,11 @@ export function DashboardContent() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [periodDays, setPeriodDays] = useState<7 | 30>(7);
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [error, setError] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [aiInsight, setAiInsight] = useState<AdminAiInsight | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -152,6 +186,10 @@ export function DashboardContent() {
 
         if (selectedDate) {
           params.set("date", selectedDate);
+        }
+
+        if (selectedMonth) {
+          params.set("month", selectedMonth);
         }
 
         const response = await fetch(`/api/dashboard/summary?${params}`, {
@@ -186,7 +224,7 @@ export function DashboardContent() {
     return () => {
       isMounted = false;
     };
-  }, [periodDays, selectedDate]);
+  }, [periodDays, selectedDate, selectedMonth]);
 
   const maxRevenue = useMemo(
     () =>
@@ -219,6 +257,15 @@ export function DashboardContent() {
 
   const maxTableRevenue = useMemo(
     () => Math.max(1, ...(data?.topTables.map((item) => item.revenue) ?? [0])),
+    [data],
+  );
+
+  const maxShiftRevenue = useMemo(
+    () =>
+      Math.max(
+        1,
+        ...(data?.shiftRevenue.shifts.map((item) => item.revenue) ?? [0]),
+      ),
     [data],
   );
 
@@ -260,6 +307,8 @@ export function DashboardContent() {
   const selectedDateLabel = data?.isSelectedToday
     ? `hôm nay (${data.selectedDateLabel})`
     : (data?.selectedDateLabel ?? "ngày đã chọn");
+  const selectedShiftMonth =
+    selectedMonth || data?.shiftRevenue.month || "";
 
   const kpiCards = [
     {
@@ -286,6 +335,41 @@ export function DashboardContent() {
     },
   ];
 
+  async function handleGenerateAiInsight() {
+    setAiError("");
+    setAiInsight(null);
+    setIsAiLoading(true);
+
+    try {
+      const response = await fetch("/api/ai/admin-insights", {
+        body: JSON.stringify({
+          date: selectedDate || undefined,
+          days: periodDays,
+          month: selectedShiftMonth || undefined,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.data) {
+        throw new Error(getErrorMessage(result, "Không thể tạo phân tích AI."));
+      }
+
+      setAiInsight(result.data as AdminAiInsight);
+    } catch (caughtError) {
+      setAiError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể tạo phân tích AI.",
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
+
   return (
     <PageShell maxWidthClassName="max-w-[1440px]">
       <PageHero
@@ -293,26 +377,76 @@ export function DashboardContent() {
         title="Dashboard doanh thu"
         description="Bức tranh vận hành theo doanh thu, hóa đơn, bàn hoạt động, món bán chạy và tỷ lệ thanh toán."
         actions={
-          <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
-            {periodOptions.map((option) => (
-              <button
-                className={
-                  periodDays === option.value
-                    ? "rounded-full bg-[#172027] px-4 py-2 text-sm font-black text-white"
-                    : "rounded-full px-4 py-2 text-sm font-black text-[#625b50] transition hover:bg-[#f8f3ea]"
-                }
-                key={option.value}
-                onClick={() => setPeriodDays(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <>
+            <button
+              className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isAiLoading || isLoading}
+              onClick={handleGenerateAiInsight}
+              type="button"
+            >
+              {isAiLoading ? "AI đang phân tích..." : "Phân tích AI"}
+            </button>
+            <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
+              {periodOptions.map((option) => (
+                <button
+                  className={
+                    periodDays === option.value
+                      ? "rounded-full bg-[#172027] px-4 py-2 text-sm font-black text-white"
+                      : "rounded-full px-4 py-2 text-sm font-black text-[#625b50] transition hover:bg-[#f8f3ea]"
+                  }
+                  key={option.value}
+                  onClick={() => setPeriodDays(option.value)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </>
         }
       />
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
+      {aiError ? <Alert tone="danger">{aiError}</Alert> : null}
+
+      {aiInsight ? (
+        <Panel className="p-5">
+          <PanelHeader
+            className="border-b-0 p-0"
+            title="Nhận xét AI"
+            description="Gợi ý vận hành dựa trên doanh thu, ca bán và món bán chạy hiện có."
+          />
+          <p className="mt-4 rounded-2xl bg-[#eef4ef] p-4 text-sm font-bold leading-6 text-[#1f463c]">
+            {aiInsight.summary}
+          </p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-4">
+            {[
+              { label: "Ca nổi bật", values: aiInsight.bestShifts },
+              { label: "Rủi ro", values: aiInsight.risks },
+              { label: "Khuyến nghị", values: aiInsight.recommendations },
+              { label: "Ý tưởng khuyến mãi", values: aiInsight.promotionIdeas },
+            ].map((group) => (
+              <article
+                className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
+                key={group.label}
+              >
+                <h3 className="text-sm font-black text-[#172027]">
+                  {group.label}
+                </h3>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#625b50]">
+                  {group.values.length > 0 ? (
+                    group.values.map((value) => (
+                      <li key={value}>• {value}</li>
+                    ))
+                  ) : (
+                    <li>Chưa có nhận xét.</li>
+                  )}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((card) => (
@@ -531,6 +665,97 @@ export function DashboardContent() {
           </Panel>
         </section>
       </section>
+
+      <Panel className="min-w-0 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <PanelHeader
+            className="border-b-0 p-0"
+            title="Doanh thu theo ca"
+            description={`Tính theo hóa đơn đã thanh toán trong tháng ${
+              data?.shiftRevenue.monthLabel ?? ""
+            }.`}
+          />
+          <label className="flex min-w-[180px] flex-col gap-2 text-sm font-bold text-[#3b352d]">
+            Tháng thống kê
+            <input
+              className="pos-input"
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              type="month"
+              value={selectedShiftMonth}
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {isLoading ? (
+            <div className="pos-empty text-left md:col-span-2 xl:col-span-3">
+              Đang tải doanh thu theo ca...
+            </div>
+          ) : null}
+
+          {data?.shiftRevenue.shifts.map((shift) => (
+            <article
+              className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
+              key={shift.key}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-[#6d645a]">
+                    Ca
+                  </p>
+                  <h3 className="mt-1 text-xl font-black text-[#172027]">
+                    {shift.label}
+                  </h3>
+                </div>
+                <span className="pos-badge bg-[#eef4ef] text-[#2f5d50]">
+                  {shift.invoiceCount} hóa đơn
+                </span>
+              </div>
+              <p className="mt-4 text-2xl font-black text-[#2f5d50]">
+                {formatMoney(shift.revenue)}
+              </p>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#f1eadf]">
+                <div
+                  className="h-full rounded-full bg-[#2f5d50]"
+                  style={{
+                    width: `${getWidthPercent(shift.revenue, maxShiftRevenue)}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-4 grid gap-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-[#625b50]">Trung bình</span>
+                  <span className="font-bold text-[#172027]">
+                    {formatMoney(shift.averageInvoiceValue)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-[#625b50]">Ngày tốt nhất</span>
+                  <span className="text-right font-bold text-[#172027]">
+                    {shift.bestDayLabel
+                      ? `${shift.bestDayLabel} · ${formatMoney(
+                          shift.bestDayRevenue,
+                        )}`
+                      : "Chưa có"}
+                  </span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-2xl bg-[#172027] p-4 text-white">
+          <p className="text-sm font-semibold text-white/70">
+            Tổng doanh thu theo ca trong tháng
+          </p>
+          <p className="mt-1 text-3xl font-black">
+            {formatMoney(data?.shiftRevenue.totalRevenue ?? 0)}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-white/70">
+            {data?.shiftRevenue.totalInvoiceCount ?? 0} hóa đơn đã thanh toán
+          </p>
+        </div>
+      </Panel>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <Panel className="min-w-0 p-5">
