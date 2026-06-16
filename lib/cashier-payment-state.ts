@@ -20,3 +20,15 @@ export function removeSettledBillOrders<TOrder extends CashierBillListItem>(
     return order.id !== bill.orderId;
   });
 }
+
+export function applyCashierOrderStatusPatch<TOrder extends { id: number }>(
+  orders: readonly TOrder[],
+  patch: { id: number; status: string },
+  visibleStatuses: readonly string[],
+) {
+  if (visibleStatuses.includes(patch.status)) {
+    return orders.slice();
+  }
+
+  return orders.filter((order) => order.id !== patch.id);
+}

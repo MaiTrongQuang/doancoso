@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
-import { removeSettledBillOrders } from "./cashier-payment-state";
+import {
+  applyCashierOrderStatusPatch,
+  removeSettledBillOrders,
+} from "./cashier-payment-state";
 
 const orders = [
   {
@@ -43,5 +46,32 @@ assert.deepEqual(
   removeSettledBillOrders(orders, { orderId: 999, sessionId: null }).map(
     (order) => order.id,
   ),
+  [53, 55, 56],
+);
+
+assert.deepEqual(
+  applyCashierOrderStatusPatch(
+    orders,
+    { id: 53, status: "CANCELLED" },
+    ["PENDING"],
+  ).map((order) => order.id),
+  [55, 56],
+);
+
+assert.deepEqual(
+  applyCashierOrderStatusPatch(
+    orders,
+    { id: 55, status: "CONFIRMED" },
+    ["PENDING"],
+  ).map((order) => order.id),
+  [53, 56],
+);
+
+assert.deepEqual(
+  applyCashierOrderStatusPatch(
+    orders,
+    { id: 999, status: "CANCELLED" },
+    ["PENDING"],
+  ).map((order) => order.id),
   [53, 55, 56],
 );
