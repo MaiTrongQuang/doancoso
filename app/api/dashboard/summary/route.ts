@@ -18,9 +18,10 @@ export async function GET(request: Request) {
     const searchParams = new URL(request.url).searchParams;
     const days = searchParams.get("days");
     const date = searchParams.get("date");
+    const month = searchParams.get("month");
 
     return NextResponse.json(
-      await getDashboardSummary({ date, days: Number(days) }),
+      await getDashboardSummary({ date, days: Number(days), month }),
     );
   } catch (error) {
     console.error(error);

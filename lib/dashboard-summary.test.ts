@@ -24,6 +24,26 @@ const result = buildDashboardSummaryResult({
     label: "01/06",
     isToday: false,
   },
+  shiftRevenue: {
+    month: "2026-06",
+    monthLabel: "06/2026",
+    totalInvoiceCount: 2,
+    totalRevenue: 70_000,
+    shifts: [
+      {
+        averageInvoiceValue: 35_000,
+        bestDay: "2026-06-01",
+        bestDayLabel: "01/06",
+        bestDayRevenue: 70_000,
+        endHour: 10,
+        invoiceCount: 2,
+        key: "06-10",
+        label: "06:00-10:00",
+        revenue: 70_000,
+        startHour: 6,
+      },
+    ],
+  },
   rawSummary: {
     todayRevenue: 70_000,
     todayOrders: 3,
@@ -150,3 +170,6 @@ assert.equal(result.topTables[0].invoiceCount, 3);
 assert.equal(result.recentInvoices[0].id, 9);
 assert.equal(result.recentInvoices[0].paymentMethod, PaymentMethod.CASH);
 assert.equal(result.recentOrders[0].id, 8);
+assert.equal(result.shiftRevenue.month, "2026-06");
+assert.equal(result.shiftRevenue.totalRevenue, 70_000);
+assert.equal(result.shiftRevenue.shifts[0].label, "06:00-10:00");
