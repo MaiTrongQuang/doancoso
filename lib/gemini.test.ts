@@ -11,9 +11,11 @@ const schema = {
 
 assert.deepEqual(
   buildGeminiGenerateContentBody({
+    maxOutputTokens: 180,
     prompt: "Return JSON.",
     responseJsonSchema: schema,
     systemInstruction: "Return only JSON.",
+    temperature: 0.4,
   }),
   {
     system_instruction: {
@@ -25,8 +27,10 @@ assert.deepEqual(
       },
     ],
     generationConfig: {
+      maxOutputTokens: 180,
       responseMimeType: "application/json",
       responseJsonSchema: schema,
+      temperature: 0.4,
     },
   },
 );

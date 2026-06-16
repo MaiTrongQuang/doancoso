@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { OrderStatus } from "@prisma/client";
 import {
+  buildFastCustomerChatReply,
   buildCustomerChatPrompt,
   customerAiSampleQuestions,
   selectCustomerChatSuggestedProducts,
@@ -15,6 +17,10 @@ type TopProductRow = {
   productName: string;
   quantity: number;
 };
+
+function getCustomerGeminiModel() {
+  return process.env.GEMINI_CUSTOMER_MODEL?.trim() || "gemini-3.1-flash-lite";
+}
 
 function normalizeId(value: unknown) {
   const id = typeof value === "number" ? value : Number.parseInt(String(value), 10);
@@ -35,7 +41,7 @@ function normalizeMessage(value: unknown) {
   return message;
 }
 
-async function getTopProducts() {
+async function fetchTopProducts() {
   const rows = await prisma.$queryRaw<TopProductRow[]>`
     SELECT
       p.name AS "productName",
@@ -54,6 +60,10 @@ async function getTopProducts() {
     quantity: Number(row.quantity),
   }));
 }
+
+const getTopProducts = unstable_cache(fetchTopProducts, ["customer-ai-top-products"], {
+  revalidate: 60,
+});
 
 export async function POST(request: Request) {
   try {
@@ -103,16 +113,26 @@ export async function POST(request: Request) {
         price: product.price,
       })),
     );
-    const reply = await generateGeminiContent({
-      prompt: buildCustomerChatPrompt({
+    const reply =
+      buildFastCustomerChatReply({
         menuItems,
         message,
         tableName: table.name,
         topProducts,
-      }),
-      systemInstruction:
-        "Bạn là trợ lý gọi món cho khách quán cà phê. Trả lời tự nhiên, ngắn gọn, không dùng markdown phức tạp.",
-    });
+      }) ??
+      (await generateGeminiContent({
+        maxOutputTokens: 180,
+        model: getCustomerGeminiModel(),
+        prompt: buildCustomerChatPrompt({
+          menuItems,
+          message,
+          tableName: table.name,
+          topProducts,
+        }),
+        systemInstruction:
+          "Bạn là trợ lý gọi món cho khách quán cà phê. Trả lời tự nhiên, tối đa 3 câu, không dùng markdown phức tạp.",
+        temperature: 0.35,
+      }));
     const suggestedProducts = selectCustomerChatSuggestedProducts({
       menuItems,
       message,

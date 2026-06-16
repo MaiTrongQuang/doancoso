@@ -153,7 +153,7 @@ export function buildCustomerChatPrompt({
   topProducts: CustomerTopProduct[];
 }) {
   const menuLines = menuItems
-    .slice(0, 40)
+    .slice(0, 24)
     .map(
       (item) =>
         `- ${item.name} (${item.categoryName}) - ${formatMoney(item.price)}`,
@@ -178,6 +178,136 @@ ${topProductLines}
 
 Menu hiện có:
 ${menuLines}`;
+}
+
+function findMenuItemByName(menuItems: CustomerMenuItem[], name: string) {
+  const normalizedTarget = normalizeText(name);
+
+  return menuItems.find(
+    (item) =>
+      normalizeText(item.name) === normalizedTarget ||
+      normalizeText(item.name).includes(normalizedTarget),
+  );
+}
+
+function formatMenuItemBrief(item: CustomerMenuItem) {
+  return `${item.name} (${formatMoney(item.price)})`;
+}
+
+function listExistingItems(menuItems: CustomerMenuItem[], names: string[]) {
+  return names
+    .map((name) => findMenuItemByName(menuItems, name))
+    .filter((item): item is CustomerMenuItem => Boolean(item));
+}
+
+export function buildFastCustomerChatReply({
+  menuItems,
+  message,
+  tableName,
+  topProducts,
+}: {
+  menuItems: CustomerMenuItem[];
+  message: string;
+  tableName: string;
+  topProducts: CustomerTopProduct[];
+}) {
+  const normalizedMessage = normalizeText(message);
+  const isAskingBestSeller =
+    normalizedMessage.includes("ban chay") ||
+    normalizedMessage.includes("best seller") ||
+    normalizedMessage.includes("top mon");
+  const isAskingLessSweet =
+    normalizedMessage.includes("it ngot") ||
+    normalizedMessage.includes("khong ngot") ||
+    normalizedMessage.includes("giam duong");
+  const isAskingCoolDrink =
+    normalizedMessage.includes("do uong mat") ||
+    normalizedMessage.includes("giai khat") ||
+    normalizedMessage.includes("hom nay") ||
+    normalizedMessage.includes("nong");
+  const isAskingCakePairing =
+    normalizedMessage.includes("banh") ||
+    normalizedMessage.includes("an kem");
+  const isAskingLightCoffee =
+    normalizedMessage.includes("ca phe nhe") ||
+    normalizedMessage.includes("cafe nhe") ||
+    normalizedMessage.includes("khong qua dam");
+
+  if (isAskingBestSeller && topProducts.length > 0) {
+    const topLines = topProducts
+      .slice(0, 3)
+      .map((topProduct) => {
+        const menuItem = findMenuItemByName(menuItems, topProduct.name);
+
+        return menuItem
+          ? formatMenuItemBrief(menuItem)
+          : `${topProduct.name} (${topProduct.quantity} món)`;
+      })
+      .join(", ");
+
+    return `Dạ, ở ${tableName} mình gợi ý nhanh các món đang bán chạy: ${topLines}. Anh/chị có thể bấm Mua ngay bên dưới để thêm vào giỏ.`;
+  }
+
+  if (isAskingLessSweet) {
+    const items = listExistingItems(menuItems, [
+      "Trà sữa truyền thống",
+      "Trà đào cam sả",
+      "Trà vải",
+      "Bạc xỉu",
+    ]).slice(0, 3);
+
+    if (items.length > 0) {
+      return `Dạ, nếu thích ít ngọt thì anh/chị nên chọn ${items
+        .map(formatMenuItemBrief)
+        .join(", ")} và để mức đường 50% hoặc 75%.`;
+    }
+  }
+
+  if (isAskingLightCoffee) {
+    const items = listExistingItems(menuItems, [
+      "Bạc xỉu",
+      "Cà phê sữa",
+      "Cà phê muối",
+    ]).slice(0, 3);
+
+    if (items.length > 0) {
+      return `Dạ, cà phê nhẹ dễ uống nhất là ${items
+        .map(formatMenuItemBrief)
+        .join(", ")}. Bạc xỉu thường hợp nếu anh/chị muốn vị cà phê mềm hơn.`;
+    }
+  }
+
+  if (isAskingCakePairing) {
+    const items = listExistingItems(menuItems, [
+      "Bánh flan caramel",
+      "Bánh su kem",
+      "Cà phê sữa",
+      "Trà đào cam sả",
+    ]).slice(0, 3);
+
+    if (items.length > 0) {
+      return `Dạ, ăn kèm bánh thì anh/chị có thể chọn ${items
+        .map(formatMenuItemBrief)
+        .join(", ")}. Các món này dễ dùng cùng đồ uống và không bị quá ngấy.`;
+    }
+  }
+
+  if (isAskingCoolDrink) {
+    const items = listExistingItems(menuItems, [
+      "Trà đào cam sả",
+      "Trà vải",
+      "Nước ép cam",
+      "Sinh tố xoài",
+    ]).slice(0, 3);
+
+    if (items.length > 0) {
+      return `Dạ, đồ uống mát dễ chọn hôm nay là ${items
+        .map(formatMenuItemBrief)
+        .join(", ")}. Anh/chị có thể chọn thêm đá 100% nếu muốn mát hơn.`;
+    }
+  }
+
+  return null;
 }
 
 export function selectCustomerChatSuggestedProducts({

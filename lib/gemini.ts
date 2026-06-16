@@ -1,7 +1,10 @@
 type GeminiGenerateContentOptions = {
+  maxOutputTokens?: number;
+  model?: string;
   prompt: string;
   responseJsonSchema?: Record<string, unknown>;
   systemInstruction?: string;
+  temperature?: number;
 };
 
 type GeminiResponse = {
@@ -32,10 +35,23 @@ function getGeminiApiKey() {
 }
 
 export function buildGeminiGenerateContentBody({
+  maxOutputTokens,
   prompt,
   responseJsonSchema,
   systemInstruction,
+  temperature,
 }: GeminiGenerateContentOptions) {
+  const generationConfig = {
+    ...(typeof maxOutputTokens === "number" ? { maxOutputTokens } : {}),
+    ...(responseJsonSchema
+      ? {
+          responseMimeType: "application/json",
+          responseJsonSchema,
+        }
+      : {}),
+    ...(typeof temperature === "number" ? { temperature } : {}),
+  };
+
   return {
     ...(systemInstruction
       ? {
@@ -49,31 +65,29 @@ export function buildGeminiGenerateContentBody({
         parts: [{ text: prompt }],
       },
     ],
-    ...(responseJsonSchema
-      ? {
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseJsonSchema,
-          },
-        }
-      : {}),
+    ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
   };
 }
 
 export async function generateGeminiContent({
+  maxOutputTokens,
+  model: modelOverride,
   prompt,
   responseJsonSchema,
   systemInstruction,
+  temperature,
 }: GeminiGenerateContentOptions) {
-  const model = getGeminiModel();
+  const model = modelOverride?.trim() || getGeminiModel();
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       body: JSON.stringify(
         buildGeminiGenerateContentBody({
+          maxOutputTokens,
           prompt,
           responseJsonSchema,
           systemInstruction,
+          temperature,
         }),
       ),
       headers: {

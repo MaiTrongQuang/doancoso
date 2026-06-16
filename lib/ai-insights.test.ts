@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import {
   buildAdminInsightPrompt,
   buildCustomerChatPrompt,
+  buildFastCustomerChatReply,
   customerAiSampleQuestions,
   parseGeminiJsonObject,
   selectCustomerChatSuggestedProducts,
@@ -81,6 +82,61 @@ assert.match(customerPrompt, /Bàn 1/);
 assert.match(customerPrompt, /Tôi thích ít ngọt/);
 assert.match(customerPrompt, /Cà phê sữa/);
 assert.ok(customerAiSampleQuestions.length >= 4);
+
+const fastBestSellerReply = buildFastCustomerChatReply({
+  menuItems: [
+    {
+      categoryName: "Cà phê",
+      id: 11,
+      imageUrl: "/bac-xiu.png",
+      name: "Bạc xỉu",
+      price: 35_000,
+    },
+    {
+      categoryName: "Trà & trà sữa",
+      id: 12,
+      imageUrl: "/tra-sua.png",
+      name: "Trà sữa truyền thống",
+      price: 35_000,
+    },
+  ],
+  message: "Món nào bán chạy nhất quán?",
+  tableName: "Bàn 1",
+  topProducts: [
+    { name: "Bạc xỉu", quantity: 10 },
+    { name: "Trà sữa truyền thống", quantity: 8 },
+  ],
+});
+
+assert.match(fastBestSellerReply ?? "", /Bạc xỉu/);
+assert.match(fastBestSellerReply ?? "", /Trà sữa truyền thống/);
+assert.match(fastBestSellerReply ?? "", /Bàn 1/);
+
+const fastLightCoffeeReply = buildFastCustomerChatReply({
+  menuItems: [
+    {
+      categoryName: "Cà phê",
+      id: 21,
+      imageUrl: "/bac-xiu.png",
+      name: "Bạc xỉu",
+      price: 35_000,
+    },
+  ],
+  message: "Tôi muốn uống cà phê nhẹ, nên chọn gì?",
+  tableName: "Bàn 2",
+  topProducts: [],
+});
+
+assert.match(fastLightCoffeeReply ?? "", /Bạc xỉu/);
+assert.equal(
+  buildFastCustomerChatReply({
+    menuItems: [],
+    message: "Bạn có mở nhạc được không?",
+    tableName: "Bàn 3",
+    topProducts: [],
+  }),
+  null,
+);
 
 const suggestedProducts = selectCustomerChatSuggestedProducts({
   limit: 3,
