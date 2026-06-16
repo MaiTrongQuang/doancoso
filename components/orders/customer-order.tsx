@@ -1,6 +1,11 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  appendCustomerAiMessage,
+  type CustomerAiMessage,
+  type CustomerAiSuggestedProduct,
+} from "./customer-ai-messages";
 import { getCategoryContextIds } from "./customer-order-navigation";
 import { customerAiSampleQuestions } from "@/lib/ai-insights";
 import { formatMoney } from "@/lib/format-money";
@@ -47,21 +52,6 @@ type SubmitResponse = {
     totalAmount: number;
     status: string;
   };
-};
-
-type CustomerAiSuggestedProduct = {
-  id: number;
-  categoryName: string;
-  imageUrl: string | null;
-  name: string;
-  price: number;
-};
-
-type CustomerAiMessage = {
-  id: number;
-  role: "assistant" | "user";
-  content: string;
-  suggestedProducts?: CustomerAiSuggestedProduct[];
 };
 
 type CustomerAiResponse = {
@@ -524,7 +514,6 @@ export function CustomerOrder({
   ]);
   const categoryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const aiMessagesEndRef = useRef<HTMLDivElement>(null);
-  const nextAiMessageIdRef = useRef(2);
 
   const orderedCategories = useMemo(() => {
     return [...categories]
@@ -986,15 +975,12 @@ export function CustomerOrder({
       return;
     }
 
-    const userMessageId = nextAiMessageIdRef.current;
-    nextAiMessageIdRef.current += 1;
-    const userMessage: CustomerAiMessage = {
-      id: userMessageId,
+    const userMessage: Omit<CustomerAiMessage, "id"> = {
       role: "user",
       content: question,
     };
 
-    setAiMessages((current) => [...current, userMessage]);
+    setAiMessages((current) => appendCustomerAiMessage(current, userMessage));
     setAiInput("");
     setAiError("");
     setIsAiSubmitting(true);
@@ -1016,16 +1002,13 @@ export function CustomerOrder({
         throw new Error(getErrorMessage(result, "Không thể tư vấn món lúc này."));
       }
 
-      setAiMessages((current) => [
-        ...current,
-        {
-          id: nextAiMessageIdRef.current,
+      setAiMessages((current) =>
+        appendCustomerAiMessage(current, {
           role: "assistant",
           content: result.data!.reply,
           suggestedProducts: result.data!.suggestedProducts ?? [],
-        },
-      ]);
-      nextAiMessageIdRef.current += 1;
+        }),
+      );
     } catch (caughtError) {
       setAiError(
         caughtError instanceof Error
@@ -1506,7 +1489,7 @@ export function CustomerOrder({
               </div>
 
               <div className="min-h-[168px] flex-1 space-y-3 overflow-y-auto px-3 py-3">
-                {aiMessages.map((aiMessage) => {
+                {aiMessages.map((aiMessage, messageIndex) => {
                   const isAssistant = aiMessage.role === "assistant";
 
                   return (
@@ -1516,13 +1499,13 @@ export function CustomerOrder({
                           ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
                           : "mr-auto max-w-[94%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
                       }
-                      key={aiMessage.id}
+                      key={`${aiMessage.id}-${messageIndex}`}
                     >
                       <p>{aiMessage.content}</p>
                       {isAssistant && aiMessage.suggestedProducts?.length ? (
                         <div className="mt-3 grid gap-2">
                           {aiMessage.suggestedProducts.map(
-                            (suggestedProduct) => {
+                            (suggestedProduct, productIndex) => {
                               const product = productById.get(suggestedProduct.id);
                               const image = product
                                 ? getProductVisual(product).image
@@ -1532,7 +1515,7 @@ export function CustomerOrder({
                               return (
                                 <article
                                   className="grid min-h-[84px] grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-2xl border border-[#d8e5d8] bg-white p-2 shadow-sm"
-                                  key={suggestedProduct.id}
+                                  key={`${aiMessage.id}-${suggestedProduct.id}-${productIndex}`}
                                 >
                                   <MenuImage
                                     className="h-16 w-16 rounded-xl bg-[#f3f3f8]"
