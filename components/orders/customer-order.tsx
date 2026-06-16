@@ -1124,14 +1124,14 @@ export function CustomerOrder({
                         <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#885200]">
                           Đường
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="mt-2 grid grid-cols-5 gap-1.5">
                           {drinkOptionLevels.map((level) => (
                             <button
                               aria-pressed={item.sugarLevel === level}
                               className={
                                 item.sugarLevel === level
-                                  ? "min-h-9 rounded-full bg-[#ff9f0a] px-3 text-xs font-extrabold text-[#2b1700]"
-                                  : "min-h-9 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
+                                  ? "min-h-9 min-w-0 rounded-full bg-[#ff9f0a] px-1 text-[13px] font-extrabold text-[#2b1700]"
+                                  : "min-h-9 min-w-0 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-1 text-[13px] font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
                               }
                               key={`sugar-${level}`}
                               onClick={() =>
@@ -1153,14 +1153,14 @@ export function CustomerOrder({
                         <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#885200]">
                           Đá
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="mt-2 grid grid-cols-5 gap-1.5">
                           {drinkOptionLevels.map((level) => (
                             <button
                               aria-pressed={item.iceLevel === level}
                               className={
                                 item.iceLevel === level
-                                  ? "min-h-9 rounded-full bg-[#2e3034] px-3 text-xs font-extrabold text-white"
-                                  : "min-h-9 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
+                                  ? "min-h-9 min-w-0 rounded-full bg-[#2e3034] px-1 text-[13px] font-extrabold text-white"
+                                  : "min-h-9 min-w-0 rounded-full border border-[#dac3ad] bg-[#fffdf9] px-1 text-[13px] font-extrabold text-[#544433] transition hover:bg-[#fff4e2]"
                               }
                               key={`ice-${level}`}
                               onClick={() =>
@@ -1612,7 +1612,7 @@ export function CustomerOrder({
         </>
       ) : null}
 
-      {!isAiOpen ? (
+      {!isAiOpen && !isCartOpen ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-50">
           <div className="mx-auto flex w-full max-w-[430px] justify-end px-4">
             <button
