@@ -9,7 +9,6 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatMoney } from "@/lib/format-money";
 import {
   formatKitchenWaitTime,
@@ -20,7 +19,7 @@ import {
   applyStaffOrderPatch,
 } from "@/lib/staff-order-queue";
 
-type StaffOrderStatus = "PENDING" | "CONFIRMED" | "PREPARING";
+type StaffOrderStatus = "CONFIRMED" | "PREPARING";
 type OrderStatus = StaffOrderStatus | "SERVED" | "PAID" | "CANCELLED";
 
 type StaffOrder = {
@@ -58,9 +57,9 @@ type OrderAction = {
   nextStatus: OrderStatus;
 };
 
-type StatusCardKey = "NEW" | "CONFIRMED" | "PREPARING";
+type StatusCardKey = "CONFIRMED" | "PREPARING";
 
-const visibleStatuses: StaffOrderStatus[] = ["PENDING", "CONFIRMED", "PREPARING"];
+const visibleStatuses: StaffOrderStatus[] = ["CONFIRMED", "PREPARING"];
 const kitchenPollIntervalMs = 12_000;
 
 const statusCards: Array<{
@@ -69,13 +68,8 @@ const statusCards: Array<{
   statuses: StaffOrderStatus[];
 }> = [
   {
-    key: "NEW",
-    label: "Đơn mới",
-    statuses: ["PENDING"],
-  },
-  {
     key: "CONFIRMED",
-    label: "Đã xác nhận",
+    label: "Chờ pha chế",
     statuses: ["CONFIRMED"],
   },
   {
@@ -86,8 +80,7 @@ const statusCards: Array<{
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "Đơn mới",
-  CONFIRMED: "Đã xác nhận",
+  CONFIRMED: "Đã thu tiền",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",
@@ -95,10 +88,6 @@ const statusLabel: Record<OrderStatus, string> = {
 };
 
 const primaryActionByStatus: Partial<Record<OrderStatus, OrderAction>> = {
-  PENDING: {
-    label: "Xác nhận đơn",
-    nextStatus: "CONFIRMED",
-  },
   CONFIRMED: {
     label: "Bắt đầu chuẩn bị",
     nextStatus: "PREPARING",
@@ -208,8 +197,6 @@ export function StaffOrderBoard() {
   const [isLoading, setIsLoading] = useState(true);
   const [processingKey, setProcessingKey] = useState("");
   const [isKitchenMode, setIsKitchenMode] = useState(false);
-  const [pendingCancelOrder, setPendingCancelOrder] =
-    useState<StaffOrder | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   const orderCountByStatus = useMemo(() => {
@@ -221,7 +208,6 @@ export function StaffOrderBoard() {
         return counts;
       },
       {
-        NEW: 0,
         CONFIRMED: 0,
         PREPARING: 0,
       },
@@ -381,9 +367,6 @@ export function StaffOrderBoard() {
       );
     } finally {
       setProcessingKey("");
-      if (nextStatus === "CANCELLED") {
-        setPendingCancelOrder(null);
-      }
     }
   }
 
@@ -391,8 +374,8 @@ export function StaffOrderBoard() {
     <PageShell maxWidthClassName="max-w-7xl">
       <PageHero
         eyebrow="Staff"
-        title="Bếp nhận đơn tức thì"
-        description="Đơn khách gửi sẽ tự vào màn hình bếp. Nhân viên xác nhận đơn mới, bắt đầu chuẩn bị và chuyển trạng thái đã phục vụ."
+        title="Pha chế & phục vụ"
+        description="Chỉ hiển thị đơn đã được quầy xác nhận thanh toán. Nhân viên pha chế, cập nhật món đang chuẩn bị và đánh dấu đã phục vụ."
         actions={
           <div className="flex flex-wrap gap-2">
             <button
@@ -417,7 +400,7 @@ export function StaffOrderBoard() {
           </div>
         }
         meta={
-          <section className="grid gap-3 sm:grid-cols-3">
+          <section className="grid gap-3 sm:grid-cols-2">
             {statusCards.map((card) => (
               <div
                 className="rounded-2xl border border-[#eadfce] bg-white/78 p-4 shadow-sm"
@@ -434,9 +417,7 @@ export function StaffOrderBoard() {
                   </div>
                   <span
                     className={
-                      card.key === "NEW"
-                        ? "pos-badge bg-amber-50 text-amber-700"
-                        : card.key === "CONFIRMED"
+                      card.key === "CONFIRMED"
                         ? "pos-badge bg-sky-50 text-sky-700"
                         : "pos-badge bg-violet-50 text-violet-700"
                     }
@@ -467,7 +448,7 @@ export function StaffOrderBoard() {
       <Panel className="overflow-hidden">
         <PanelHeader
           title="Hàng đợi bếp"
-          description="Xác nhận đơn mới trước, sau đó bắt đầu chuẩn bị và chuyển sang đã phục vụ."
+          description="Các đơn trong hàng đợi này đều đã được thu tiền/xác nhận tại quầy."
           aside={<CountPill>{orders.length} đơn</CountPill>}
         />
 
@@ -480,9 +461,6 @@ export function StaffOrderBoard() {
         >
           {sortedOrders.map((order) => {
             const primaryAction = primaryActionByStatus[order.status];
-            const canCancel = visibleStatuses.includes(
-              order.status as StaffOrderStatus,
-            );
             const urgency = getKitchenOrderUrgency(order.createdAt, now);
 
             return (
@@ -515,9 +493,7 @@ export function StaffOrderBoard() {
                           className={`pos-badge ${
                             order.status === "PREPARING"
                               ? "bg-violet-50 text-violet-700"
-                              : order.status === "PENDING"
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-sky-50 text-sky-700"
+                              : "bg-sky-50 text-sky-700"
                           }`}
                         >
                           {statusLabel[order.status]}
@@ -591,10 +567,10 @@ export function StaffOrderBoard() {
                         </span>
                       </div>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <div className="mt-4">
                         {primaryAction ? (
                           <button
-                            className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+                            className="pos-button-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={
                               processingKey ===
                               `${order.id}-${primaryAction.nextStatus}`
@@ -610,19 +586,6 @@ export function StaffOrderBoard() {
                               : primaryAction.label}
                           </button>
                         ) : null}
-
-                        {canCancel ? (
-                          <button
-                            className="pos-button-danger disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={processingKey === `${order.id}-CANCELLED`}
-                            onClick={() => setPendingCancelOrder(order)}
-                            type="button"
-                          >
-                            {processingKey === `${order.id}-CANCELLED`
-                              ? "Đang hủy..."
-                              : "Hủy đơn"}
-                          </button>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -632,28 +595,6 @@ export function StaffOrderBoard() {
           })}
         </section>
       </Panel>
-
-      <ConfirmDialog
-        confirmLabel="Hủy đơn"
-        description="Đơn sẽ rời khỏi hàng đợi bếp. Nếu đây là đơn cuối cùng của bàn, bàn có thể được trả về trạng thái trống."
-        isConfirming={
-          pendingCancelOrder
-            ? processingKey === `${pendingCancelOrder.id}-CANCELLED`
-            : false
-        }
-        onCancel={() => setPendingCancelOrder(null)}
-        onConfirm={() => {
-          if (pendingCancelOrder) {
-            updateOrderStatus(pendingCancelOrder, "CANCELLED");
-          }
-        }}
-        open={pendingCancelOrder !== null}
-        title={`Hủy đơn #${pendingCancelOrder?.id ?? ""}?`}
-      >
-        {pendingCancelOrder
-          ? `${pendingCancelOrder.table.name} · ${formatMoney(pendingCancelOrder.totalAmount)}`
-          : null}
-      </ConfirmDialog>
     </PageShell>
   );
 }

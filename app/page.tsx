@@ -131,8 +131,8 @@ export default async function Home() {
             <div className="grid gap-3 pb-1">
               {[
                 ["Bàn 1", "Khách đang chọn món", "QR"],
-                ["Bếp", "Có đơn mới cần xác nhận", "Staff"],
-                ["Thu ngân", "Theo dõi thanh toán", "Pay"],
+                ["Bếp", "Đơn đã thu tiền chờ pha chế", "Staff"],
+                ["Quầy", "Xác nhận thanh toán", "Pay"],
               ].map(([title, detail, tag]) => (
                 <div
                   className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-2xl border border-white/12 bg-white/12 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur"

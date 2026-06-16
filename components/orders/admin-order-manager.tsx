@@ -42,8 +42,8 @@ type AdminOrder = {
 
 const statusOptions: Array<{ value: "ALL" | OrderStatus; label: string }> = [
   { value: "ALL", label: "Tất cả trạng thái" },
-  { value: "PENDING", label: "Đơn mới" },
-  { value: "CONFIRMED", label: "Đã xác nhận" },
+  { value: "PENDING", label: "Chờ thanh toán" },
+  { value: "CONFIRMED", label: "Đã thu tiền" },
   { value: "PREPARING", label: "Đang chuẩn bị" },
   { value: "SERVED", label: "Đã phục vụ" },
   { value: "PAID", label: "Đã thanh toán" },
@@ -51,8 +51,8 @@ const statusOptions: Array<{ value: "ALL" | OrderStatus; label: string }> = [
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "Đơn mới",
-  CONFIRMED: "Đã xác nhận",
+  PENDING: "Chờ thanh toán",
+  CONFIRMED: "Đã thu tiền",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",

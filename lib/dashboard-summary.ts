@@ -125,8 +125,8 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 };
 
 const orderStatusLabels: Record<OrderStatus, string> = {
-  PENDING: "Đơn mới",
-  CONFIRMED: "Đã xác nhận",
+  PENDING: "Chờ thanh toán",
+  CONFIRMED: "Đã thu tiền",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",

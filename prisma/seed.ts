@@ -18,7 +18,7 @@ const users = [
     role: Role.STAFF,
   },
   {
-    name: "Thu ngân",
+    name: "Quầy vận hành",
     email: "cashier@gmail.com",
     password: "123456",
     role: Role.CASHIER,

@@ -38,25 +38,18 @@ type CashierOrder = {
   }>;
 };
 
-type Invoice = {
-  id: number;
-  orderId: number;
-  sessionId: number | null;
-  totalAmount: number;
-  paymentMethod: PaymentMethod;
-  paidAt: string;
-  order: {
-    table: {
-      id: number;
-      name: string;
-    };
-    items: CashierOrder["items"];
-  };
-};
-
-type InvoiceResponse = {
+type OrderStatusResponse = {
   message?: string;
-  data?: Invoice;
+  data?: {
+    id: number;
+    status: string;
+    updatedAt: string;
+    invoice: {
+      id: number;
+      paymentMethod: PaymentMethod;
+      totalAmount: number;
+    } | null;
+  };
 };
 
 type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED";
@@ -76,12 +69,6 @@ type SepayPayment = {
   paidAt: string | null;
   createdAt: string;
   updatedAt: string;
-};
-
-type SepayCreateResponse = {
-  message?: string;
-  data?: SepayPayment;
-  qrUrl?: string | null;
 };
 
 type PaymentPollingResponse = {
@@ -124,7 +111,7 @@ const paymentOptions: Array<{
   {
     value: "BANK_TRANSFER",
     label: "Thanh toán QR",
-    description: "Tạo mã QR ngân hàng và tự xác nhận giao dịch.",
+    description: "Xác nhận khách đã chuyển khoản hoặc quét QR tại quầy.",
   },
 ];
 
@@ -176,21 +163,15 @@ function findSettledBillOrder(
 
 function getPayButtonLabel({
   isPaying,
-  paymentMethod,
 }: {
   isPaying: boolean;
-  paymentMethod: PaymentMethod;
 }) {
-  if (paymentMethod === "BANK_TRANSFER") {
-    return isPaying ? "Đang tạo QR..." : "Tạo mã QR";
-  }
-
-  return isPaying ? "Đang thanh toán..." : "Thanh toán";
+  return isPaying ? "Đang xác nhận..." : "Xác nhận đã thanh toán";
 }
 
-async function fetchServedOrders() {
+async function fetchPendingOrders() {
   const response = await fetch(
-    "/api/orders?statuses=SERVED&groupBySession=true&view=summary",
+    "/api/orders?statuses=PENDING",
     {
       cache: "no-store",
     },
@@ -198,7 +179,9 @@ async function fetchServedOrders() {
   const result = await response.json();
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(result, "Không thể tải đơn đã phục vụ."));
+    throw new Error(
+      getErrorMessage(result, "Không thể tải đơn chờ thanh toán."),
+    );
   }
 
   return ((result.data ?? []) as CashierOrder[]).map((order) => ({
@@ -215,7 +198,7 @@ async function fetchBillDetail(orderId: number) {
 
   if (!response.ok || !result.data) {
     throw new Error(
-      getErrorMessage(result, "Không thể tải chi tiết đơn đã phục vụ."),
+      getErrorMessage(result, "Không thể tải chi tiết đơn chờ thanh toán."),
     );
   }
 
@@ -313,13 +296,13 @@ function PaymentSuccessNotice({ details }: { details: PaymentSuccessDetails }) {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">
-              Ngân hàng đã xác nhận giao dịch
+              Quầy đã xác nhận thanh toán
             </p>
             <h2 className="mt-2 text-3xl font-black leading-tight text-[#172027] lg:text-4xl">
-              THANH TOÁN THÀNH CÔNG
+              ĐƠN ĐÃ CHUYỂN SANG PHA CHẾ
             </h2>
             <p className="mt-2 text-base font-semibold text-emerald-800">
-              Hóa đơn đã được tạo tự động. Cảm ơn quý khách.
+              Hóa đơn đã được tạo. Nhân viên bếp có thể chuẩn bị món ngay.
             </p>
           </div>
         </div>
@@ -410,12 +393,12 @@ export function CashierOrderPayment() {
     setError("");
 
     try {
-      setOrders(await fetchServedOrders());
+      setOrders(await fetchPendingOrders());
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Không thể tải đơn đã phục vụ.",
+          : "Không thể tải đơn chờ thanh toán.",
       );
     } finally {
       setIsLoading(false);
@@ -427,7 +410,7 @@ export function CashierOrderPayment() {
 
     async function loadInitialOrders() {
       try {
-        const nextOrders = await fetchServedOrders();
+        const nextOrders = await fetchPendingOrders();
 
         if (isMounted) {
           setOrders(nextOrders);
@@ -437,7 +420,7 @@ export function CashierOrderPayment() {
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : "Không thể tải đơn đã phục vụ.",
+              : "Không thể tải đơn chờ thanh toán.",
           );
         }
       } finally {
@@ -485,7 +468,7 @@ export function CashierOrderPayment() {
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : "Không thể tải chi tiết đơn đã phục vụ.",
+              : "Không thể tải chi tiết đơn chờ thanh toán.",
           );
         }
       })
@@ -622,111 +605,58 @@ export function CashierOrderPayment() {
     };
   }, [pollingOrderId]);
 
-  async function handleCreateQrPayment() {
-    if (!selectedOrder) {
-      setError("Vui lòng chọn đơn cần thanh toán.");
-      return;
-    }
-
-    setMessage("");
-    setError("");
-    setPaymentSuccess(null);
-    setIsPaying(true);
-
-    try {
-      const response = await fetch("/api/payments/sepay/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderId: selectedOrder.id,
-        }),
-      });
-      const result = (await response.json()) as SepayCreateResponse;
-
-      if (!response.ok || !result.data) {
-        throw new Error(getErrorMessage(result, "Không thể tạo mã QR."));
-      }
-
-      setQrPayment(result.data);
-      setPaymentSuccess(null);
-      setMessage(
-        result.message ??
-          "Đã tạo mã QR. Vui lòng chờ ngân hàng xác nhận giao dịch.",
-      );
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Không thể tạo mã QR.",
-      );
-    } finally {
-      setIsPaying(false);
-    }
-  }
-
   async function handlePay() {
     if (!selectedOrder) {
       setError("Vui lòng chọn đơn cần thanh toán.");
       return;
     }
 
-    if (paymentMethod === "BANK_TRANSFER") {
-      await handleCreateQrPayment();
-      return;
-    }
-
     setMessage("");
     setError("");
     setPaymentSuccess(null);
     setIsPaying(true);
 
     try {
-      const response = await fetch("/api/invoices", {
-        method: "POST",
+      const response = await fetch(`/api/orders/${selectedOrder.id}/status`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          orderId: selectedOrder.id,
+          status: "CONFIRMED",
           paymentMethod,
         }),
       });
-      const result = (await response.json()) as InvoiceResponse;
+      const result = (await response.json()) as OrderStatusResponse;
 
       if (!response.ok || !result.data) {
-        throw new Error(getErrorMessage(result, "Không thể thanh toán đơn."));
+        throw new Error(
+          getErrorMessage(result, "Không thể xác nhận thanh toán đơn."),
+        );
       }
 
-      const settledBill = {
-        orderId: result.data.orderId,
-        sessionId: result.data.sessionId,
-      };
+      const invoice = result.data.invoice;
 
       setMessage("");
       setPaymentSuccess({
-        amount: result.data.totalAmount,
-        invoiceId: result.data.id,
-        methodLabel: paymentLabel[result.data.paymentMethod],
-        orderLabel: getBillLabel({
-          id: result.data.orderId,
-          sessionId: result.data.sessionId,
-        }),
-        tableName: result.data.order.table.name,
+        amount: invoice?.totalAmount ?? selectedOrder.totalAmount,
+        invoiceId: invoice?.id ?? null,
+        methodLabel: paymentLabel[invoice?.paymentMethod ?? paymentMethod],
+        orderLabel: getBillLabel(selectedOrder),
+        tableName: selectedOrder.table.name,
       });
       setQrPayment(null);
       setSelectedOrderId(null);
       setIsLoadingOrderDetail(false);
       setOrders((currentOrders) =>
-        removeSettledBillOrders(currentOrders, settledBill),
+        currentOrders.filter((order) => order.id !== selectedOrder.id),
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Không thể thanh toán đơn.",
+          : "Không thể xác nhận thanh toán đơn.",
       );
     } finally {
       setIsPaying(false);
@@ -737,8 +667,8 @@ export function CashierOrderPayment() {
     <PageShell>
       <PageHero
         eyebrow="Cashier"
-        title="Thanh toán đơn hàng"
-        description="Chọn đơn đã phục vụ, xác nhận phương thức thanh toán và tạo hóa đơn với ít thao tác nhất."
+        title="Quầy xác nhận đơn"
+        description="Nhận tiền ngay sau khi khách gọi món, tạo hóa đơn và chuyển đơn đã thanh toán sang bếp."
         actions={
           <button
             className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
@@ -760,8 +690,8 @@ export function CashierOrderPayment() {
       <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Panel className="h-fit min-w-0 overflow-hidden">
           <PanelHeader
-            title="Đơn đã phục vụ"
-            description="Các đơn chờ chốt thanh toán."
+            title="Đơn chờ thanh toán"
+            description="Khách gọi món xong sẽ mang mã đơn ra quầy để xác nhận."
             aside={<CountPill>{orders.length} đơn</CountPill>}
           />
 
@@ -772,7 +702,7 @@ export function CashierOrderPayment() {
 
               {!isLoading && orders.length === 0 ? (
                 <p className="text-sm text-[#625b50]">
-                  Chưa có đơn nào sẵn sàng thanh toán.
+                  Chưa có đơn nào chờ quầy xác nhận.
                 </p>
               ) : null}
 
@@ -805,8 +735,8 @@ export function CashierOrderPayment() {
                         {order.table.name}
                       </p>
                     </div>
-                    <span className="pos-badge bg-emerald-50 text-emerald-700">
-                      Đã phục vụ
+                    <span className="pos-badge bg-amber-50 text-amber-700">
+                      Chờ thanh toán
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-[#625b50]">
@@ -825,10 +755,10 @@ export function CashierOrderPayment() {
               <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-dashed border-[#cfc2b2] bg-[#fffdf9] p-6 text-center">
                 <div>
                   <h2 className="text-xl font-black text-[#172027]">
-                    Chọn một đơn để thanh toán
+                    Chọn một đơn để xác nhận
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#625b50]">
-                    Đơn đã được nhân viên chuyển sang trạng thái đã phục vụ sẽ xuất hiện ở danh sách bên trái.
+                    Khi khách thanh toán xong, đơn sẽ chuyển sang hàng đợi pha chế.
                   </p>
                 </div>
               </div>
@@ -845,8 +775,8 @@ export function CashierOrderPayment() {
                       {selectedOrder.table.name}
                     </h2>
                   </div>
-                  <span className="pos-badge bg-emerald-50 text-emerald-700">
-                    Đã phục vụ
+                  <span className="pos-badge bg-amber-50 text-amber-700">
+                    Chờ thanh toán
                   </span>
                 </div>
 
@@ -950,7 +880,7 @@ export function CashierOrderPayment() {
                       onClick={handlePay}
                       type="button"
                     >
-                      {getPayButtonLabel({ isPaying, paymentMethod })}
+                      {getPayButtonLabel({ isPaying })}
                     </button>
                   </div>
                 </div>

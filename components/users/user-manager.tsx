@@ -61,8 +61,8 @@ const roleOptions: Array<{
   },
   {
     value: "CASHIER",
-    label: "Thu ngân",
-    description: "Thanh toán và tạo hóa đơn.",
+    label: "Quầy vận hành",
+    description: "Xác nhận thanh toán, cập nhật đơn và tạo hóa đơn.",
     className: "bg-violet-50 text-violet-700",
   },
 ];
@@ -75,7 +75,7 @@ const roleLabel = roleOptions.reduce<Record<UserRole, string>>(
   {
     ADMIN: "Admin",
     STAFF: "Nhân viên",
-    CASHIER: "Thu ngân",
+    CASHIER: "Quầy vận hành",
   },
 );
 

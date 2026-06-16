@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   canTransitionOrderStatus,
+  getPersistedOrderStatusAfterTransition,
   getAllowedNextOrderStatuses,
   isLockedOrderStatus,
 } from "./order-status-flow";
@@ -18,3 +19,25 @@ assert.equal(canTransitionOrderStatus("PAID", "CANCELLED"), false);
 assert.equal(isLockedOrderStatus("PAID"), true);
 assert.equal(isLockedOrderStatus("CANCELLED"), true);
 assert.equal(isLockedOrderStatus("SERVED"), false);
+
+assert.equal(
+  getPersistedOrderStatusAfterTransition({
+    hasInvoice: true,
+    nextStatus: "SERVED",
+  }),
+  "PAID",
+);
+assert.equal(
+  getPersistedOrderStatusAfterTransition({
+    hasInvoice: false,
+    nextStatus: "SERVED",
+  }),
+  "SERVED",
+);
+assert.equal(
+  getPersistedOrderStatusAfterTransition({
+    hasInvoice: true,
+    nextStatus: "CONFIRMED",
+  }),
+  "CONFIRMED",
+);

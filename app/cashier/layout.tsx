@@ -12,8 +12,8 @@ export default async function CashierLayout({
     <div className="min-h-screen bg-transparent">
       <RoleHeader
         badge="Cashier"
-        title="Khu vực thu ngân"
-        description="Thanh toán đơn đã phục vụ và tạo hóa đơn cho khách."
+        title="Quầy vận hành"
+        description="Xác nhận thanh toán, tạo hóa đơn và chuyển đơn sang pha chế."
         userName={session?.name}
       />
       {children}

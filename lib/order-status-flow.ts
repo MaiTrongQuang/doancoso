@@ -44,3 +44,17 @@ export function canTransitionOrderStatus(
 ) {
   return getAllowedNextOrderStatuses(currentStatus).includes(nextStatus);
 }
+
+export function getPersistedOrderStatusAfterTransition({
+  hasInvoice,
+  nextStatus,
+}: {
+  hasInvoice: boolean;
+  nextStatus: OrderStatus;
+}) {
+  if (hasInvoice && nextStatus === "SERVED") {
+    return "PAID";
+  }
+
+  return nextStatus;
+}

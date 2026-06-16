@@ -11,7 +11,7 @@ export const adminRoutes = [
 export const staffRoutes = [{ href: "/staff/orders", label: "Đơn nhân viên" }];
 
 export const cashierRoutes = [
-  { href: "/cashier/orders", label: "Đơn thu ngân" },
+  { href: "/cashier/orders", label: "Quầy xác nhận" },
 ];
 
 export const customerRoutes = [

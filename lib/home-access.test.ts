@@ -32,5 +32,5 @@ const adminModel = getHomeAccessModel("ADMIN");
 
 assert.deepEqual(
   adminModel.internalGroups.map((group) => group.title),
-  ["Quản trị", "Nhân viên", "Thu ngân"],
+  ["Quản trị", "Nhân viên", "Quầy vận hành"],
 );

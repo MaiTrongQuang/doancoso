@@ -478,7 +478,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message:
-          "Đã gửi đơn thành công. Nhân viên sẽ xác nhận đơn trước khi chuẩn bị.",
+          `Đã gửi đơn #${order.id}. Vui lòng thanh toán tại quầy để quán chuyển món sang pha chế.`,
         data: serializeCustomerSubmittedOrder(order),
       },
       { status: 201 },

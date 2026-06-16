@@ -77,7 +77,7 @@ type MenuVisual = {
 const allCategory = "ALL";
 const autumnMenuImage = "/images/menu/autumn-special-menu.png";
 const successMessage =
-  "Đã gửi đơn thành công. Nhân viên sẽ xác nhận đơn trước khi chuẩn bị.";
+  "Đã gửi đơn. Vui lòng thanh toán tại quầy để quán chuyển món sang pha chế.";
 
 const heroImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAjyVtJO98Pc71lJgKUEoqc9BkFspIH7-HZLzEp-0UfDVS6DgMSg8aNv-b9UPs7RskpspwRT1DeEHpwCmYucBkGw0CBjaeEbTXT_vmY5xtRjHpx9LSzr0Lp6nt5AMBxFmSxk66XQesWDRiCgK036crU0eQNLHSIJav9fzbhpbPo_dtH21VpwLQ3HmFOTPJx9jPU2fttZ5kTGJP7PiWl9roxzwu43J4--Mk9waWVduOjCRQ_gqyyPSobfWfjtDJoJgnzG5nX3FYoO7Q";
@@ -219,8 +219,8 @@ const productRankByName = new Map(
 );
 
 const statusLabel: Record<string, string> = {
-  PENDING: "Đơn mới",
-  CONFIRMED: "Đã xác nhận",
+  PENDING: "Chờ thanh toán tại quầy",
+  CONFIRMED: "Đã thu tiền",
   PREPARING: "Đang chuẩn bị",
   SERVED: "Đã phục vụ",
   PAID: "Đã thanh toán",
@@ -1233,7 +1233,7 @@ export function CustomerOrder({
                 Đang gửi đơn
               </span>
             ) : (
-              `Gửi đơn (${totalQuantity})`
+              `Gửi đơn & thanh toán (${totalQuantity})`
             )}
           </button>
         </div>
@@ -1290,6 +1290,7 @@ export function CustomerOrder({
               {submittedOrder ? (
                 <div className="mt-3 rounded-lg bg-white/85 p-3 text-[#1a1c1f]">
                   <p>Đơn #{submittedOrder.id}</p>
+                  <p>Mang mã đơn này ra quầy để thanh toán.</p>
                   <p>
                     Trạng thái:{" "}
                     {statusLabel[submittedOrder.status] ??

@@ -815,7 +815,7 @@ export function DashboardContent() {
         <Panel className="min-w-0 overflow-hidden">
           <PanelHeader
             title="Hóa đơn gần nhất"
-            description={`Thu ngân có thể mở nhanh hóa đơn trong ${selectedDateLabel}.`}
+            description={`Quầy vận hành có thể mở nhanh hóa đơn trong ${selectedDateLabel}.`}
             aside={<CountPill>{data?.recentInvoices.length ?? 0} hóa đơn</CountPill>}
           />
 
