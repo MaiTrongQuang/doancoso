@@ -523,6 +523,7 @@ export function CustomerOrder({
     },
   ]);
   const categoryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
   const nextAiMessageIdRef = useRef(2);
 
   const orderedCategories = useMemo(() => {
@@ -736,6 +737,38 @@ export function CustomerOrder({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [isCartOpen]);
+
+  useEffect(() => {
+    if (!isAiOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsAiOpen(false);
+      }
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isAiOpen]);
+
+  useEffect(() => {
+    if (!isAiOpen) {
+      return;
+    }
+
+    aiMessagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [aiMessages, isAiOpen, isAiSubmitting]);
 
   function setCategoryButtonRef(
     categoryId: string,
@@ -1429,159 +1462,187 @@ export function CustomerOrder({
       ) : null}
 
       {isAiOpen ? (
-        <div className="fixed bottom-[92px] right-3 z-50 w-[calc(100vw-24px)] max-w-[390px] sm:right-5">
-          <section className="max-h-[72dvh] w-full overflow-hidden rounded-[24px] border border-[#dac3ad] bg-[#fffdf9] shadow-[0_22px_60px_rgba(46,48,52,0.3)]">
-            <div className="flex items-start justify-between gap-3 border-b border-[#eadfce] p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#172027] text-sm font-black text-white shadow-[0_8px_18px_rgba(23,32,39,0.22)]">
-                  AI
-                </span>
-                <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#885200]">
-                  AI tư vấn
-                </p>
-                <h2 className="mt-1 text-lg font-extrabold text-[#1a1c1f]">
-                  Gợi ý món cho bạn
-                </h2>
-                </div>
+        <>
+          <button
+            aria-label="Đóng AI tư vấn"
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+            onClick={() => setIsAiOpen(false)}
+            type="button"
+          />
+          <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-50 mx-auto w-full max-w-[430px] px-2">
+            <section
+              aria-labelledby="customer-ai-title"
+              aria-modal="true"
+              className="flex max-h-[76dvh] w-full flex-col overflow-hidden rounded-[28px] border border-[#dac3ad] bg-[#fffdf9] shadow-[0_-18px_52px_rgba(46,48,52,0.28)]"
+              role="dialog"
+            >
+              <div className="px-4 pt-2">
+                <div className="mx-auto h-1.5 w-12 rounded-full bg-[#c9b39e]" />
               </div>
-              <button
-                className="min-h-9 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433]"
-                onClick={() => setIsAiOpen(false)}
-                type="button"
-              >
-                Đóng
-              </button>
-            </div>
-
-            <div className="max-h-[38dvh] space-y-3 overflow-y-auto p-4">
-              {aiMessages.map((aiMessage) => {
-                const isAssistant = aiMessage.role === "assistant";
-
-                return (
-                  <div
-                    className={
-                      aiMessage.role === "user"
-                        ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
-                        : "mr-auto max-w-[94%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
-                    }
-                    key={aiMessage.id}
-                  >
-                    <p>{aiMessage.content}</p>
-                    {isAssistant && aiMessage.suggestedProducts?.length ? (
-                      <div className="mt-3 grid gap-2">
-                        {aiMessage.suggestedProducts.map((suggestedProduct) => {
-                          const product = productById.get(suggestedProduct.id);
-                          const image =
-                            product
-                              ? getProductVisual(product).image
-                              : suggestedProduct.imageUrl?.trim() || autumnMenuImage;
-
-                          return (
-                            <article
-                              className="grid min-h-[84px] grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-2xl border border-[#d8e5d8] bg-white p-2 shadow-sm"
-                              key={suggestedProduct.id}
-                            >
-                              <MenuImage
-                                className="h-16 w-16 rounded-xl bg-[#f3f3f8]"
-                                image={image}
-                                label={getMenuImageLabel(suggestedProduct.name)}
-                              />
-                              <div className="min-w-0">
-                                <p className="line-clamp-2 text-sm font-extrabold leading-5 text-[#1a1c1f]">
-                                  {suggestedProduct.name}
-                                </p>
-                                <p className="mt-0.5 truncate text-[11px] font-bold uppercase text-[#6f8174]">
-                                  {suggestedProduct.categoryName}
-                                </p>
-                                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                                  <span className="text-sm font-black tabular-nums text-[#885200]">
-                                    {formatMoney(suggestedProduct.price)}
-                                  </span>
-                                  <button
-                                    className="min-h-9 shrink-0 rounded-full bg-[#f6a62f] px-3 text-xs font-black text-[#2b1700] transition hover:bg-[#ffb94f] disabled:bg-[#d7d1c9] disabled:text-[#6f665d]"
-                                    disabled={!product}
-                                    onClick={() =>
-                                      buySuggestedProduct(suggestedProduct.id)
-                                    }
-                                    type="button"
-                                  >
-                                    {product ? "Mua ngay" : "Hết món"}
-                                  </button>
-                                </div>
-                              </div>
-                            </article>
-                          );
-                        })}
-                      </div>
-                    ) : null}
+              <div className="flex items-start justify-between gap-3 border-b border-[#eadfce] px-4 pb-3 pt-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#172027] text-sm font-black text-white shadow-[0_8px_18px_rgba(23,32,39,0.22)]">
+                    AI
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase leading-4 tracking-[0.1em] text-[#885200]">
+                      AI tư vấn
+                    </p>
+                    <h2
+                      className="mt-0.5 truncate text-lg font-extrabold leading-6 text-[#1a1c1f]"
+                      id="customer-ai-title"
+                    >
+                      Gợi ý món cho bạn
+                    </h2>
                   </div>
-                );
-              })}
-              {isAiSubmitting ? (
-                <div className="mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]">
-                  AI đang nghĩ món phù hợp...
                 </div>
-              ) : null}
-            </div>
-
-            <div className="border-t border-[#eadfce] p-4">
-              <div className="mb-3 grid gap-2">
-                {customerAiSampleQuestions.map((question) => (
-                  <button
-                    className="min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
-                    disabled={isAiSubmitting}
-                    key={question}
-                    onClick={() => askCustomerAi(question)}
-                    type="button"
-                  >
-                    {question}
-                  </button>
-                ))}
-              </div>
-              {aiError ? (
-                <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700">
-                  {aiError}
-                </p>
-              ) : null}
-              <form
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void askCustomerAi();
-                }}
-              >
-                <input
-                  className="min-h-11 rounded-xl border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
-                  disabled={isAiSubmitting}
-                  onChange={(event) => setAiInput(event.target.value)}
-                  placeholder="Hỏi AI tư vấn món..."
-                  type="text"
-                  value={aiInput}
-                />
                 <button
-                  className="min-h-11 rounded-xl bg-[#2e3034] px-4 text-sm font-extrabold text-white disabled:opacity-60"
-                  disabled={isAiSubmitting || !aiInput.trim()}
-                  type="submit"
+                  className="min-h-9 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2] focus:outline-none focus:ring-2 focus:ring-[#885200]"
+                  onClick={() => setIsAiOpen(false)}
+                  type="button"
                 >
-                  Gửi
+                  Đóng
                 </button>
-              </form>
-            </div>
-          </section>
-        </div>
+              </div>
+
+              <div className="min-h-[168px] flex-1 space-y-3 overflow-y-auto px-3 py-3">
+                {aiMessages.map((aiMessage) => {
+                  const isAssistant = aiMessage.role === "assistant";
+
+                  return (
+                    <div
+                      className={
+                        aiMessage.role === "user"
+                          ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
+                          : "mr-auto max-w-[94%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
+                      }
+                      key={aiMessage.id}
+                    >
+                      <p>{aiMessage.content}</p>
+                      {isAssistant && aiMessage.suggestedProducts?.length ? (
+                        <div className="mt-3 grid gap-2">
+                          {aiMessage.suggestedProducts.map(
+                            (suggestedProduct) => {
+                              const product = productById.get(suggestedProduct.id);
+                              const image = product
+                                ? getProductVisual(product).image
+                                : suggestedProduct.imageUrl?.trim() ||
+                                  autumnMenuImage;
+
+                              return (
+                                <article
+                                  className="grid min-h-[84px] grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-2xl border border-[#d8e5d8] bg-white p-2 shadow-sm"
+                                  key={suggestedProduct.id}
+                                >
+                                  <MenuImage
+                                    className="h-16 w-16 rounded-xl bg-[#f3f3f8]"
+                                    image={image}
+                                    label={getMenuImageLabel(
+                                      suggestedProduct.name,
+                                    )}
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="line-clamp-2 text-sm font-extrabold leading-5 text-[#1a1c1f]">
+                                      {suggestedProduct.name}
+                                    </p>
+                                    <p className="mt-0.5 truncate text-[11px] font-bold uppercase text-[#6f8174]">
+                                      {suggestedProduct.categoryName}
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                      <span className="text-sm font-black tabular-nums text-[#885200]">
+                                        {formatMoney(suggestedProduct.price)}
+                                      </span>
+                                      <button
+                                        className="min-h-9 shrink-0 rounded-full bg-[#f6a62f] px-3 text-xs font-black text-[#2b1700] transition hover:bg-[#ffb94f] disabled:bg-[#d7d1c9] disabled:text-[#6f665d]"
+                                        disabled={!product}
+                                        onClick={() =>
+                                          buySuggestedProduct(suggestedProduct.id)
+                                        }
+                                        type="button"
+                                      >
+                                        {product ? "Mua ngay" : "Hết món"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </article>
+                              );
+                            },
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {isAiSubmitting ? (
+                  <div className="mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]">
+                    AI đang nghĩ món phù hợp...
+                  </div>
+                ) : null}
+                <div ref={aiMessagesEndRef} />
+              </div>
+
+              <div className="shrink-0 border-t border-[#eadfce] bg-[#fffdf9] p-3">
+                <div className="mb-3 grid max-h-[148px] gap-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                  {customerAiSampleQuestions.map((question) => (
+                    <button
+                      className="min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
+                      disabled={isAiSubmitting}
+                      key={question}
+                      onClick={() => askCustomerAi(question)}
+                      type="button"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+                {aiError ? (
+                  <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700">
+                    {aiError}
+                  </p>
+                ) : null}
+                <form
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void askCustomerAi();
+                  }}
+                >
+                  <input
+                    className="min-h-11 rounded-xl border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                    disabled={isAiSubmitting}
+                    onChange={(event) => setAiInput(event.target.value)}
+                    placeholder="Hỏi AI tư vấn món..."
+                    type="text"
+                    value={aiInput}
+                  />
+                  <button
+                    className="min-h-11 rounded-xl bg-[#2e3034] px-4 text-sm font-extrabold text-white disabled:opacity-60"
+                    disabled={isAiSubmitting || !aiInput.trim()}
+                    type="submit"
+                  >
+                    Gửi
+                  </button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </>
       ) : null}
 
       {!isAiOpen ? (
-        <button
-          aria-label="Mở AI tư vấn món"
-          className="fixed bottom-[88px] right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-[#2b1700]/15 bg-[#111111] text-sm font-black text-white shadow-[0_18px_38px_rgba(17,17,17,0.32)] transition hover:scale-[1.03] hover:bg-[#172027] focus:outline-none focus:ring-4 focus:ring-[#ffb868] sm:right-6"
-          onClick={() => setIsAiOpen(true)}
-          type="button"
-        >
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-[#ff9f0a]" />
-          AI
-        </button>
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-50">
+          <div className="mx-auto flex w-full max-w-[430px] justify-end px-4">
+            <button
+              aria-label="Mở AI tư vấn món"
+              className="pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full border border-[#2b1700]/15 bg-[#111111] text-sm font-black text-white shadow-[0_18px_38px_rgba(17,17,17,0.32)] transition hover:scale-[1.03] hover:bg-[#172027] focus:outline-none focus:ring-4 focus:ring-[#ffb868]"
+              onClick={() => setIsAiOpen(true)}
+              type="button"
+            >
+              <span className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-white bg-[#ff9f0a]" />
+              AI
+            </button>
+          </div>
+        </div>
       ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5">
