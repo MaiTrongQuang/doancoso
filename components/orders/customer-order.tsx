@@ -1402,16 +1402,21 @@ export function CustomerOrder({
       ) : null}
 
       {isAiOpen ? (
-        <div className="fixed inset-x-0 bottom-[76px] z-40 px-3">
-          <section className="mx-auto max-h-[70dvh] w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#dac3ad] bg-[#fffdf9] shadow-[0_18px_46px_rgba(46,48,52,0.24)]">
+        <div className="fixed bottom-[92px] right-3 z-50 w-[calc(100vw-24px)] max-w-[390px] sm:right-5">
+          <section className="max-h-[72dvh] w-full overflow-hidden rounded-[24px] border border-[#dac3ad] bg-[#fffdf9] shadow-[0_22px_60px_rgba(46,48,52,0.3)]">
             <div className="flex items-start justify-between gap-3 border-b border-[#eadfce] p-4">
-              <div>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#172027] text-sm font-black text-white shadow-[0_8px_18px_rgba(23,32,39,0.22)]">
+                  AI
+                </span>
+                <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#885200]">
                   AI tư vấn
                 </p>
                 <h2 className="mt-1 text-lg font-extrabold text-[#1a1c1f]">
                   Gợi ý món cho bạn
                 </h2>
+                </div>
               </div>
               <button
                 className="min-h-9 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433]"
@@ -1443,10 +1448,10 @@ export function CustomerOrder({
             </div>
 
             <div className="border-t border-[#eadfce] p-4">
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              <div className="mb-3 grid gap-2">
                 {customerAiSampleQuestions.map((question) => (
                   <button
-                    className="min-h-9 shrink-0 rounded-full border border-[#dac3ad] bg-white px-3 text-xs font-extrabold text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
+                    className="min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
                     disabled={isAiSubmitting}
                     key={question}
                     onClick={() => askCustomerAi(question)}
@@ -1489,19 +1494,20 @@ export function CustomerOrder({
         </div>
       ) : null}
 
+      {!isAiOpen ? (
+        <button
+          aria-label="Mở AI tư vấn món"
+          className="fixed bottom-[88px] right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-[#2b1700]/15 bg-[#111111] text-sm font-black text-white shadow-[0_18px_38px_rgba(17,17,17,0.32)] transition hover:scale-[1.03] hover:bg-[#172027] focus:outline-none focus:ring-4 focus:ring-[#ffb868] sm:right-6"
+          onClick={() => setIsAiOpen(true)}
+          type="button"
+        >
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-[#ff9f0a]" />
+          AI
+        </button>
+      ) : null}
+
       <div className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5">
         <div className="mx-auto flex max-w-[430px] items-center gap-2 rounded-t-2xl border border-b-0 border-[#dac3ad] bg-[rgba(255,255,255,0.95)] p-1.5 shadow-[0_-10px_24px_rgba(46,48,52,0.12)] backdrop-blur-xl">
-          <button
-            className={
-              isAiOpen
-                ? "min-h-11 rounded-xl bg-[#2e3034] px-4 text-sm font-extrabold text-white transition focus:outline-none focus:ring-2 focus:ring-[#885200]"
-                : "min-h-11 rounded-xl border border-[#dac3ad] bg-white px-4 text-sm font-extrabold text-[#544433] transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
-            }
-            onClick={() => setIsAiOpen((current) => !current)}
-            type="button"
-          >
-            AI
-          </button>
           <button
             className="min-h-11 flex-1 rounded-xl border border-[#dac3ad] bg-white px-3 text-left transition hover:bg-[#f3f3f8] focus:outline-none focus:ring-2 focus:ring-[#885200]"
             onClick={openCartSheet}
