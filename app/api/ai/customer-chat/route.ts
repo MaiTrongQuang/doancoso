@@ -3,6 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import {
   buildCustomerChatPrompt,
   customerAiSampleQuestions,
+  selectCustomerChatSuggestedProducts,
 } from "@/lib/ai-insights";
 import { getCustomerMenuCategories } from "@/lib/customer-menu-catalog";
 import { generateGeminiContent } from "@/lib/gemini";
@@ -96,6 +97,8 @@ export async function POST(request: Request) {
     const menuItems = categories.flatMap((category) =>
       category.products.map((product) => ({
         categoryName: category.name,
+        id: product.id,
+        imageUrl: product.imageUrl,
         name: product.name,
         price: product.price,
       })),
@@ -110,11 +113,18 @@ export async function POST(request: Request) {
       systemInstruction:
         "Bạn là trợ lý gọi món cho khách quán cà phê. Trả lời tự nhiên, ngắn gọn, không dùng markdown phức tạp.",
     });
+    const suggestedProducts = selectCustomerChatSuggestedProducts({
+      menuItems,
+      message,
+      reply,
+      topProducts,
+    });
 
     return NextResponse.json({
       data: {
         reply,
         sampleQuestions: customerAiSampleQuestions,
+        suggestedProducts,
       },
     });
   } catch (error) {

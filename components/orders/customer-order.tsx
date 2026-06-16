@@ -49,10 +49,19 @@ type SubmitResponse = {
   };
 };
 
+type CustomerAiSuggestedProduct = {
+  id: number;
+  categoryName: string;
+  imageUrl: string | null;
+  name: string;
+  price: number;
+};
+
 type CustomerAiMessage = {
   id: number;
   role: "assistant" | "user";
   content: string;
+  suggestedProducts?: CustomerAiSuggestedProduct[];
 };
 
 type CustomerAiResponse = {
@@ -60,6 +69,7 @@ type CustomerAiResponse = {
   data?: {
     reply: string;
     sampleQuestions: string[];
+    suggestedProducts?: CustomerAiSuggestedProduct[];
   };
 };
 
@@ -548,6 +558,10 @@ export function CustomerOrder({
     [orderedCategories],
   );
 
+  const productById = useMemo(() => {
+    return new Map(products.map((product) => [product.id, product]));
+  }, [products]);
+
   const categoryById = useMemo(() => {
     return new Map(orderedCategories.map((category) => [category.id, category]));
   }, [orderedCategories]);
@@ -773,6 +787,18 @@ export function CustomerOrder({
     });
   }, [categoryById]);
 
+  const buySuggestedProduct = useCallback((productId: number) => {
+    const product = productById.get(productId);
+
+    if (!product) {
+      return;
+    }
+
+    addToCart(product);
+    setIsAiOpen(false);
+    setIsCartOpen(true);
+  }, [addToCart, productById]);
+
   function increaseQuantity(productId: number) {
     setCart((current) => {
       const item = current[productId];
@@ -963,6 +989,7 @@ export function CustomerOrder({
           id: nextAiMessageIdRef.current,
           role: "assistant",
           content: result.data!.reply,
+          suggestedProducts: result.data!.suggestedProducts ?? [],
         },
       ]);
       nextAiMessageIdRef.current += 1;
@@ -1428,18 +1455,69 @@ export function CustomerOrder({
             </div>
 
             <div className="max-h-[38dvh] space-y-3 overflow-y-auto p-4">
-              {aiMessages.map((aiMessage) => (
-                <div
-                  className={
-                    aiMessage.role === "user"
-                      ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
-                      : "mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
-                  }
-                  key={aiMessage.id}
-                >
-                  {aiMessage.content}
-                </div>
-              ))}
+              {aiMessages.map((aiMessage) => {
+                const isAssistant = aiMessage.role === "assistant";
+
+                return (
+                  <div
+                    className={
+                      aiMessage.role === "user"
+                        ? "ml-auto max-w-[82%] rounded-2xl bg-[#ffddbb] px-4 py-3 text-sm font-semibold leading-6 text-[#2b1700]"
+                        : "mr-auto max-w-[94%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]"
+                    }
+                    key={aiMessage.id}
+                  >
+                    <p>{aiMessage.content}</p>
+                    {isAssistant && aiMessage.suggestedProducts?.length ? (
+                      <div className="mt-3 grid gap-2">
+                        {aiMessage.suggestedProducts.map((suggestedProduct) => {
+                          const product = productById.get(suggestedProduct.id);
+                          const image =
+                            product
+                              ? getProductVisual(product).image
+                              : suggestedProduct.imageUrl?.trim() || autumnMenuImage;
+
+                          return (
+                            <article
+                              className="grid min-h-[84px] grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-2xl border border-[#d8e5d8] bg-white p-2 shadow-sm"
+                              key={suggestedProduct.id}
+                            >
+                              <MenuImage
+                                className="h-16 w-16 rounded-xl bg-[#f3f3f8]"
+                                image={image}
+                                label={getMenuImageLabel(suggestedProduct.name)}
+                              />
+                              <div className="min-w-0">
+                                <p className="line-clamp-2 text-sm font-extrabold leading-5 text-[#1a1c1f]">
+                                  {suggestedProduct.name}
+                                </p>
+                                <p className="mt-0.5 truncate text-[11px] font-bold uppercase text-[#6f8174]">
+                                  {suggestedProduct.categoryName}
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-sm font-black tabular-nums text-[#885200]">
+                                    {formatMoney(suggestedProduct.price)}
+                                  </span>
+                                  <button
+                                    className="min-h-9 shrink-0 rounded-full bg-[#f6a62f] px-3 text-xs font-black text-[#2b1700] transition hover:bg-[#ffb94f] disabled:bg-[#d7d1c9] disabled:text-[#6f665d]"
+                                    disabled={!product}
+                                    onClick={() =>
+                                      buySuggestedProduct(suggestedProduct.id)
+                                    }
+                                    type="button"
+                                  >
+                                    {product ? "Mua ngay" : "Hết món"}
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
               {isAiSubmitting ? (
                 <div className="mr-auto max-w-[88%] rounded-2xl bg-[#eef4ef] px-4 py-3 text-sm font-semibold leading-6 text-[#1f463c]">
                   AI đang nghĩ món phù hợp...

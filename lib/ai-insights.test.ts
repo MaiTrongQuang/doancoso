@@ -4,6 +4,7 @@ import {
   buildCustomerChatPrompt,
   customerAiSampleQuestions,
   parseGeminiJsonObject,
+  selectCustomerChatSuggestedProducts,
   toAdminInsight,
 } from "./ai-insights";
 
@@ -80,3 +81,44 @@ assert.match(customerPrompt, /Bàn 1/);
 assert.match(customerPrompt, /Tôi thích ít ngọt/);
 assert.match(customerPrompt, /Cà phê sữa/);
 assert.ok(customerAiSampleQuestions.length >= 4);
+
+const suggestedProducts = selectCustomerChatSuggestedProducts({
+  limit: 3,
+  menuItems: [
+    {
+      categoryName: "Trà & trà sữa",
+      id: 1,
+      imageUrl: "/tra-sua.png",
+      name: "Trà sữa truyền thống",
+      price: 35_000,
+    },
+    {
+      categoryName: "Cà phê",
+      id: 2,
+      imageUrl: "/bac-xiu.png",
+      name: "Bạc xỉu",
+      price: 35_000,
+    },
+    {
+      categoryName: "Bánh ngọt",
+      id: 3,
+      imageUrl: "/flan.png",
+      name: "Bánh flan caramel",
+      price: 25_000,
+    },
+  ],
+  message: "Tôi thích trà sữa ít ngọt",
+  reply:
+    "Bạn có thể chọn Trà sữa truyền thống hoặc Bánh flan caramel ăn kèm.",
+  topProducts: [
+    { name: "Bạc xỉu", quantity: 10 },
+    { name: "Bánh flan caramel", quantity: 4 },
+  ],
+});
+
+assert.deepEqual(
+  suggestedProducts.map((product) => product.id),
+  [1, 3, 2],
+);
+assert.equal(suggestedProducts[0].imageUrl, "/tra-sua.png");
+assert.equal(suggestedProducts[0].price, 35_000);

@@ -31,7 +31,9 @@ type AdminPromptSummary = {
 };
 
 type CustomerMenuItem = {
+  id?: number;
   categoryName: string;
+  imageUrl?: string | null;
   name: string;
   price: number;
 };
@@ -58,6 +60,14 @@ function toStringArray(value: unknown) {
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 }
 
 export function parseGeminiJsonObject(text: string) {
@@ -168,4 +178,64 @@ ${topProductLines}
 
 Menu hiện có:
 ${menuLines}`;
+}
+
+export function selectCustomerChatSuggestedProducts({
+  limit = 3,
+  menuItems,
+  message,
+  reply,
+  topProducts,
+}: {
+  limit?: number;
+  menuItems: Array<CustomerMenuItem & { id: number }>;
+  message: string;
+  reply: string;
+  topProducts: CustomerTopProduct[];
+}) {
+  const normalizedMessage = normalizeText(message);
+  const normalizedReply = normalizeText(reply);
+  const topProductQuantityByName = new Map(
+    topProducts.map((product) => [normalizeText(product.name), product.quantity]),
+  );
+
+  return menuItems
+    .map((item) => {
+      const normalizedName = normalizeText(item.name);
+      const normalizedCategory = normalizeText(item.categoryName);
+      const nameWords = normalizedName
+        .split(/\s+/)
+        .filter((word) => word.length >= 3);
+      const replyMentionsName = normalizedReply.includes(normalizedName);
+      const messageMentionsName = normalizedMessage.includes(normalizedName);
+      const messageMentionsCategory = normalizedMessage.includes(normalizedCategory);
+      const sharedWordScore = nameWords.filter(
+        (word) =>
+          normalizedMessage.includes(word) || normalizedReply.includes(word),
+      ).length;
+      const topQuantity = topProductQuantityByName.get(normalizedName) ?? 0;
+
+      return {
+        item,
+        score:
+          (replyMentionsName ? 10_000 : 0) +
+          (messageMentionsName ? 2_000 : 0) +
+          (messageMentionsCategory ? 800 : 0) +
+          sharedWordScore * 120 +
+          Math.min(topQuantity, 100),
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score || left.item.name.localeCompare(right.item.name, "vi"),
+    )
+    .slice(0, limit)
+    .map(({ item }) => ({
+      categoryName: item.categoryName,
+      id: item.id,
+      imageUrl: item.imageUrl ?? null,
+      name: item.name,
+      price: item.price,
+    }));
 }
