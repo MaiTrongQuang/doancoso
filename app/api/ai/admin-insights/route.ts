@@ -67,6 +67,19 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(error);
 
+    if (
+      error instanceof Error &&
+      error.message === "GEMINI_API_KEY is not configured."
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Chưa cấu hình GEMINI_API_KEY trên môi trường deploy. Vui lòng thêm biến môi trường rồi deploy lại.",
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(
       { message: "Không thể tạo phân tích AI. Vui lòng thử lại sau." },
       { status: 500 },

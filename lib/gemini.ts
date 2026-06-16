@@ -31,6 +31,35 @@ function getGeminiApiKey() {
   return apiKey;
 }
 
+export function buildGeminiGenerateContentBody({
+  prompt,
+  responseJsonSchema,
+  systemInstruction,
+}: GeminiGenerateContentOptions) {
+  return {
+    ...(systemInstruction
+      ? {
+          system_instruction: {
+            parts: [{ text: systemInstruction }],
+          },
+        }
+      : {}),
+    contents: [
+      {
+        parts: [{ text: prompt }],
+      },
+    ],
+    ...(responseJsonSchema
+      ? {
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseJsonSchema,
+          },
+        }
+      : {}),
+  };
+}
+
 export async function generateGeminiContent({
   prompt,
   responseJsonSchema,
@@ -40,32 +69,13 @@ export async function generateGeminiContent({
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
-      body: JSON.stringify({
-        ...(systemInstruction
-          ? {
-              system_instruction: {
-                parts: [{ text: systemInstruction }],
-              },
-            }
-          : {}),
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        ...(responseJsonSchema
-          ? {
-              generationConfig: {
-                responseFormat: {
-                  text: {
-                    mimeType: "application/json",
-                    schema: responseJsonSchema,
-                  },
-                },
-              },
-            }
-          : {}),
-      }),
+      body: JSON.stringify(
+        buildGeminiGenerateContentBody({
+          prompt,
+          responseJsonSchema,
+          systemInstruction,
+        }),
+      ),
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": getGeminiApiKey(),
