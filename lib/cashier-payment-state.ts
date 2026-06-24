@@ -8,6 +8,12 @@ export type CashierBillListItem = {
   sessionId: number | null;
 };
 
+export type CashierOrderListState = {
+  id: number;
+  status: string;
+  updatedAt: string;
+};
+
 export function removeSettledBillOrders<TOrder extends CashierBillListItem>(
   orders: readonly TOrder[],
   bill: CashierBillIdentity,
@@ -31,4 +37,33 @@ export function applyCashierOrderStatusPatch<TOrder extends { id: number }>(
   }
 
   return orders.filter((order) => order.id !== patch.id);
+}
+
+export function hasCashierOrderListChanged(
+  currentOrders: readonly CashierOrderListState[],
+  nextSummaries: readonly CashierOrderListState[],
+) {
+  if (currentOrders.length !== nextSummaries.length) {
+    return true;
+  }
+
+  const currentOrderById = new Map(
+    currentOrders.map((order) => [
+      order.id,
+      {
+        status: order.status,
+        updatedAt: order.updatedAt,
+      },
+    ]),
+  );
+
+  return nextSummaries.some((summary) => {
+    const currentOrder = currentOrderById.get(summary.id);
+
+    return (
+      !currentOrder ||
+      currentOrder.status !== summary.status ||
+      currentOrder.updatedAt !== summary.updatedAt
+    );
+  });
 }

@@ -13,6 +13,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   applyCashierOrderStatusPatch,
+  hasCashierOrderListChanged,
   removeSettledBillOrders,
 } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
@@ -136,6 +137,7 @@ const paymentLabel: Record<PaymentMethod, string> = {
   QR_PAYMENT: "Thanh toán QR",
 };
 const cashierVisibleStatuses = ["PENDING"] as const;
+const cashierOrderPollIntervalMs = 5_000;
 
 function getErrorMessage(value: unknown, fallback: string) {
   if (
@@ -228,6 +230,28 @@ async function fetchPendingOrders() {
     ...order,
     items: order.items ?? [],
   }));
+}
+
+async function fetchPendingOrderSummaries() {
+  const response = await fetch(
+    "/api/orders?statuses=PENDING&view=summary",
+    {
+      cache: "no-store",
+    },
+  );
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      getErrorMessage(result, "Không thể tải đơn chờ thanh toán."),
+    );
+  }
+
+  return (result.data ?? []) as Array<{
+    id: number;
+    status: string;
+    updatedAt: string;
+  }>;
 }
 
 async function fetchBillDetail(orderId: number) {
@@ -485,6 +509,7 @@ export function CashierOrderPayment() {
 
   useEffect(() => {
     let isMounted = true;
+    let isPolling = false;
 
     async function loadInitialOrders() {
       try {
@@ -510,8 +535,66 @@ export function CashierOrderPayment() {
 
     loadInitialOrders();
 
+    async function pollOrderSummaries() {
+      if (document.visibilityState !== "visible" || isPolling) {
+        return;
+      }
+
+      isPolling = true;
+
+      try {
+        const nextSummaries = await fetchPendingOrderSummaries();
+        const currentOrders = ordersRef.current;
+
+        if (
+          isMounted &&
+          hasCashierOrderListChanged(currentOrders, nextSummaries)
+        ) {
+          const nextOrders = await fetchPendingOrders();
+          const currentOrderIds = new Set(
+            currentOrders.map((order) => order.id),
+          );
+          const hasNewOrder = nextOrders.some(
+            (order) => !currentOrderIds.has(order.id),
+          );
+
+          if (isMounted) {
+            setOrders(nextOrders);
+
+            if (hasNewOrder) {
+              setMessage("Có đơn mới chờ thanh toán.");
+            }
+          }
+        }
+      } catch (caughtError) {
+        if (isMounted) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Không thể tải đơn chờ thanh toán.",
+          );
+        }
+      } finally {
+        isPolling = false;
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void pollOrderSummaries();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const intervalId = window.setInterval(
+      pollOrderSummaries,
+      cashierOrderPollIntervalMs,
+    );
+
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(intervalId);
     };
   }, []);
 

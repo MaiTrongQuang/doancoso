@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   applyCashierOrderStatusPatch,
+  hasCashierOrderListChanged,
   removeSettledBillOrders,
 } from "./cashier-payment-state";
 
@@ -74,4 +75,86 @@ assert.deepEqual(
     ["PENDING"],
   ).map((order) => order.id),
   [53, 55, 56],
+);
+
+const cashierOrders = [
+  {
+    id: 53,
+    status: "PENDING",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+  },
+  {
+    id: 55,
+    status: "PENDING",
+    updatedAt: "2026-06-25T00:01:00.000Z",
+  },
+];
+
+assert.equal(
+  hasCashierOrderListChanged(cashierOrders, [
+    {
+      id: 53,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:00:00.000Z",
+    },
+    {
+      id: 55,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:01:00.000Z",
+    },
+  ]),
+  false,
+);
+
+assert.equal(
+  hasCashierOrderListChanged(cashierOrders, [
+    {
+      id: 53,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:00:00.000Z",
+    },
+    {
+      id: 55,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:01:00.000Z",
+    },
+    {
+      id: 56,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:02:00.000Z",
+    },
+  ]),
+  true,
+);
+
+assert.equal(
+  hasCashierOrderListChanged(cashierOrders, [
+    {
+      id: 53,
+      status: "CONFIRMED",
+      updatedAt: "2026-06-25T00:00:00.000Z",
+    },
+    {
+      id: 55,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:01:00.000Z",
+    },
+  ]),
+  true,
+);
+
+assert.equal(
+  hasCashierOrderListChanged(cashierOrders, [
+    {
+      id: 53,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:03:00.000Z",
+    },
+    {
+      id: 55,
+      status: "PENDING",
+      updatedAt: "2026-06-25T00:01:00.000Z",
+    },
+  ]),
+  true,
 );
