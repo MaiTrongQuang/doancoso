@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   appendCustomerAiMessage,
+  shouldCollapseCustomerAiSuggestions,
   type CustomerAiMessage,
   type CustomerAiSuggestedProduct,
 } from "./customer-ai-messages";
@@ -504,6 +505,7 @@ export function CustomerOrder({
   const [aiInput, setAiInput] = useState("");
   const [aiError, setAiError] = useState("");
   const [isAiSubmitting, setIsAiSubmitting] = useState(false);
+  const [isAiSuggestionsExpanded, setIsAiSuggestionsExpanded] = useState(false);
   const [aiMessages, setAiMessages] = useState<CustomerAiMessage[]>([
     {
       id: 1,
@@ -641,6 +643,10 @@ export function CustomerOrder({
     () => cartItems.reduce((total, item) => total + item.quantity, 0),
     [cartItems],
   );
+  const shouldCollapseAiSuggestions =
+    shouldCollapseCustomerAiSuggestions(aiMessages);
+  const showAiSuggestionList =
+    !shouldCollapseAiSuggestions || isAiSuggestionsExpanded;
 
   function getProductVisual(product: CustomerProduct): MenuVisual {
     return (
@@ -983,6 +989,7 @@ export function CustomerOrder({
     setAiMessages((current) => appendCustomerAiMessage(current, userMessage));
     setAiInput("");
     setAiError("");
+    setIsAiSuggestionsExpanded(false);
     setIsAiSubmitting(true);
 
     try {
@@ -1566,19 +1573,39 @@ export function CustomerOrder({
               </div>
 
               <div className="shrink-0 border-t border-[#eadfce] bg-[#fffdf9] p-3">
-                <div className="mb-3 grid max-h-[148px] gap-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                  {customerAiSampleQuestions.map((question) => (
-                    <button
-                      className="min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
-                      disabled={isAiSubmitting}
-                      key={question}
-                      onClick={() => askCustomerAi(question)}
-                      type="button"
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
+                {showAiSuggestionList ? (
+                  <div className="mb-3 grid max-h-[148px] gap-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                    {shouldCollapseAiSuggestions ? (
+                      <button
+                        className="min-h-9 w-full rounded-xl border border-[#dac3ad] bg-[#fff8ed] px-3 text-left text-xs font-extrabold leading-5 text-[#885200] transition hover:bg-[#fff4e2]"
+                        onClick={() => setIsAiSuggestionsExpanded(false)}
+                        type="button"
+                      >
+                        Ẩn gợi ý câu hỏi
+                      </button>
+                    ) : null}
+                    {customerAiSampleQuestions.map((question) => (
+                      <button
+                        className="min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
+                        disabled={isAiSubmitting}
+                        key={question}
+                        onClick={() => askCustomerAi(question)}
+                        type="button"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    className="mb-3 min-h-10 w-full rounded-xl border border-[#dac3ad] bg-white px-3 text-left text-xs font-extrabold leading-5 text-[#544433] transition hover:bg-[#fff4e2] disabled:opacity-60"
+                    disabled={isAiSubmitting}
+                    onClick={() => setIsAiSuggestionsExpanded(true)}
+                    type="button"
+                  >
+                    Gợi ý câu hỏi
+                  </button>
+                )}
                 {aiError ? (
                   <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700">
                     {aiError}

@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
-import { appendCustomerAiMessage } from "./customer-ai-messages";
+import {
+  appendCustomerAiMessage,
+  shouldCollapseCustomerAiSuggestions,
+} from "./customer-ai-messages";
 
 const existingMessages = [
   {
@@ -28,3 +31,15 @@ assert.deepEqual(
   [1, 4, 5, 6],
 );
 assert.equal(new Set(withUser.map((message) => message.id)).size, withUser.length);
+assert.equal(shouldCollapseCustomerAiSuggestions([]), false);
+assert.equal(
+  shouldCollapseCustomerAiSuggestions([
+    {
+      id: 1,
+      role: "assistant",
+      content: "Bạn muốn hỏi gì?",
+    },
+  ]),
+  false,
+);
+assert.equal(shouldCollapseCustomerAiSuggestions(withUser), true);

@@ -30,3 +30,9 @@ export function appendCustomerAiMessage(
     },
   ];
 }
+
+export function shouldCollapseCustomerAiSuggestions(
+  messages: CustomerAiMessage[],
+) {
+  return messages.some((message) => message.role === "user");
+}

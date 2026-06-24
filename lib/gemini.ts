@@ -17,11 +17,42 @@ type GeminiResponse = {
   }>;
   error?: {
     message?: string;
+    status?: string;
   };
 };
 
+class GeminiApiError extends Error {
+  apiStatus?: string;
+  status: number;
+
+  constructor({
+    apiStatus,
+    message,
+    status,
+  }: {
+    apiStatus?: string;
+    message: string;
+    status: number;
+  }) {
+    super(message);
+    this.name = "GeminiApiError";
+    this.apiStatus = apiStatus;
+    this.status = status;
+  }
+}
+
 function getGeminiModel() {
   return process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash";
+}
+
+function getGeminiFallbackModels() {
+  const configuredFallbacks = process.env.GEMINI_FALLBACK_MODELS?.split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  return configuredFallbacks?.length
+    ? configuredFallbacks
+    : ["gemini-3.1-flash-lite", "gemini-2.5-flash"];
 }
 
 function getGeminiApiKey() {
@@ -32,6 +63,28 @@ function getGeminiApiKey() {
   }
 
   return apiKey;
+}
+
+function getGeminiModelCandidates(primaryModel: string) {
+  return Array.from(
+    new Set([primaryModel, ...getGeminiFallbackModels()].filter(Boolean)),
+  );
+}
+
+function isRetryableGeminiError(error: unknown) {
+  if (!(error instanceof GeminiApiError)) {
+    return false;
+  }
+
+  return (
+    error.status === 429 ||
+    error.status === 500 ||
+    error.status === 502 ||
+    error.status === 503 ||
+    error.status === 504 ||
+    error.apiStatus === "UNAVAILABLE" ||
+    error.apiStatus === "RESOURCE_EXHAUSTED"
+  );
 }
 
 export function buildGeminiGenerateContentBody({
@@ -69,15 +122,14 @@ export function buildGeminiGenerateContentBody({
   };
 }
 
-export async function generateGeminiContent({
+async function requestGeminiContent({
   maxOutputTokens,
-  model: modelOverride,
+  model,
   prompt,
   responseJsonSchema,
   systemInstruction,
   temperature,
-}: GeminiGenerateContentOptions) {
-  const model = modelOverride?.trim() || getGeminiModel();
+}: GeminiGenerateContentOptions & { model: string }) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -100,9 +152,11 @@ export async function generateGeminiContent({
   const result = (await response.json().catch(() => null)) as GeminiResponse | null;
 
   if (!response.ok) {
-    throw new Error(
-      result?.error?.message ?? "Gemini API did not accept the request.",
-    );
+    throw new GeminiApiError({
+      apiStatus: result?.error?.status,
+      message: result?.error?.message ?? "Gemini API did not accept the request.",
+      status: response.status,
+    });
   }
 
   const text = result?.candidates?.[0]?.content?.parts
@@ -115,4 +169,38 @@ export async function generateGeminiContent({
   }
 
   return text;
+}
+
+export async function generateGeminiContent({
+  maxOutputTokens,
+  model: modelOverride,
+  prompt,
+  responseJsonSchema,
+  systemInstruction,
+  temperature,
+}: GeminiGenerateContentOptions) {
+  const primaryModel = modelOverride?.trim() || getGeminiModel();
+  const models = getGeminiModelCandidates(primaryModel);
+  let lastRetryableError: unknown = null;
+
+  for (const [index, model] of models.entries()) {
+    try {
+      return await requestGeminiContent({
+        maxOutputTokens,
+        model,
+        prompt,
+        responseJsonSchema,
+        systemInstruction,
+        temperature,
+      });
+    } catch (error) {
+      if (!isRetryableGeminiError(error) || index === models.length - 1) {
+        throw error;
+      }
+
+      lastRetryableError = error;
+    }
+  }
+
+  throw lastRetryableError ?? new Error("Gemini API did not return a response.");
 }

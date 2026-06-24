@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
-import { buildGeminiGenerateContentBody } from "./gemini";
+import {
+  buildGeminiGenerateContentBody,
+  generateGeminiContent,
+} from "./gemini";
 
 const schema = {
   type: "object",
@@ -47,3 +50,63 @@ assert.deepEqual(
     ],
   },
 );
+
+const originalFetch = globalThis.fetch;
+const originalApiKey = process.env.GEMINI_API_KEY;
+const originalFallbackModels = process.env.GEMINI_FALLBACK_MODELS;
+
+process.env.GEMINI_API_KEY = "test-key";
+process.env.GEMINI_FALLBACK_MODELS = "gemini-3.1-flash-lite, gemini-2.5-flash";
+
+const requestedUrls: string[] = [];
+globalThis.fetch = async (input) => {
+  const url = String(input);
+  requestedUrls.push(url);
+
+  if (url.includes("/gemini-3.5-flash:generateContent")) {
+    return new Response(
+      JSON.stringify({
+        error: {
+          message:
+            "This model is currently experiencing high demand. Please try again later.",
+          status: "UNAVAILABLE",
+        },
+      }),
+      { status: 503 },
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      candidates: [
+        {
+          content: {
+            parts: [{ text: "Fallback model answered." }],
+          },
+        },
+      ],
+    }),
+    { status: 200 },
+  );
+};
+
+async function assertFallsBackWhenPrimaryModelIsUnavailable() {
+  try {
+    const fallbackText = await generateGeminiContent({
+      model: "gemini-3.5-flash",
+      prompt: "Hello",
+    });
+
+    assert.equal(fallbackText, "Fallback model answered.");
+    assert.deepEqual(
+      requestedUrls.map((url) => url.match(/models\/([^:]+)/)?.[1]),
+      ["gemini-3.5-flash", "gemini-3.1-flash-lite"],
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.GEMINI_API_KEY = originalApiKey;
+    process.env.GEMINI_FALLBACK_MODELS = originalFallbackModels;
+  }
+}
+
+void assertFallsBackWhenPrimaryModelIsUnavailable();
