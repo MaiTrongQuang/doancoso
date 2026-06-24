@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   applyCashierOrderStatusPatch,
+  getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
   removeSettledBillOrders,
 } from "./cashier-payment-state";
@@ -125,6 +126,47 @@ assert.equal(
     },
   ]),
   true,
+);
+
+assert.equal(
+  getCashierPaymentActionLabel({
+    hasPendingQrPayment: false,
+    isPaying: false,
+    paymentMethod: "CASH",
+  }),
+  "Xác nhận đã nhận tiền",
+);
+assert.equal(
+  getCashierPaymentActionLabel({
+    hasPendingQrPayment: false,
+    isPaying: true,
+    paymentMethod: "BANK_TRANSFER",
+  }),
+  "Đang xác nhận...",
+);
+assert.equal(
+  getCashierPaymentActionLabel({
+    hasPendingQrPayment: false,
+    isPaying: false,
+    paymentMethod: "QR_PAYMENT",
+  }),
+  "Tạo mã QR thanh toán",
+);
+assert.equal(
+  getCashierPaymentActionLabel({
+    hasPendingQrPayment: false,
+    isPaying: true,
+    paymentMethod: "QR_PAYMENT",
+  }),
+  "Đang tạo mã QR...",
+);
+assert.equal(
+  getCashierPaymentActionLabel({
+    hasPendingQrPayment: true,
+    isPaying: false,
+    paymentMethod: "QR_PAYMENT",
+  }),
+  "Đang chờ ngân hàng xác nhận",
 );
 
 assert.equal(

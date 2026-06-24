@@ -14,6 +14,8 @@ export type CashierOrderListState = {
   updatedAt: string;
 };
 
+export type CashierPaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
+
 export function removeSettledBillOrders<TOrder extends CashierBillListItem>(
   orders: readonly TOrder[],
   bill: CashierBillIdentity,
@@ -66,4 +68,24 @@ export function hasCashierOrderListChanged(
       currentOrder.updatedAt !== summary.updatedAt
     );
   });
+}
+
+export function getCashierPaymentActionLabel({
+  hasPendingQrPayment,
+  isPaying,
+  paymentMethod,
+}: {
+  hasPendingQrPayment: boolean;
+  isPaying: boolean;
+  paymentMethod: CashierPaymentMethod;
+}) {
+  if (paymentMethod === "QR_PAYMENT") {
+    if (hasPendingQrPayment) {
+      return "Đang chờ ngân hàng xác nhận";
+    }
+
+    return isPaying ? "Đang tạo mã QR..." : "Tạo mã QR thanh toán";
+  }
+
+  return isPaying ? "Đang xác nhận..." : "Xác nhận đã nhận tiền";
 }

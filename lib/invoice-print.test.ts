@@ -9,7 +9,7 @@ import {
 assert.equal(formatInvoiceCode(1), "HD000001");
 assert.equal(formatInvoiceCode(125), "HD000125");
 assert.equal(getPaymentLabel("CASH"), "Tiền mặt");
-assert.equal(getPaymentLabel("BANK_TRANSFER"), "Thanh toán QR");
+assert.equal(getPaymentLabel("BANK_TRANSFER"), "Chuyển khoản");
 assert.equal(getPaymentLabel("QR_PAYMENT"), "Thanh toán QR");
 assert.deepEqual(receiptStoreInfo, {
   name: "NANA CAFE & TEA",

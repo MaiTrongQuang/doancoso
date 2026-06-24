@@ -10,6 +10,7 @@ import {
 import {
   canConfirmSepayPayment,
   extractSepayTransferCode,
+  getOrderStatusAfterSepayPayment,
   isIncomingSepayTransfer,
   normalizeSepayAmount,
   normalizeSepayText,
@@ -236,6 +237,58 @@ async function processSepayWebhook(body: unknown) {
         status: PaymentStatus.PAID,
       },
     });
+
+    const nextOrderStatus = getOrderStatusAfterSepayPayment(
+      currentPayment.order.status,
+    );
+
+    if (nextOrderStatus === OrderStatus.CONFIRMED) {
+      await tx.order.update({
+        where: {
+          id: currentPayment.orderId,
+        },
+        data: {
+          status: OrderStatus.CONFIRMED,
+        },
+      });
+
+      const existingInvoice = await tx.invoice.findUnique({
+        where: {
+          orderId: currentPayment.orderId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingInvoice) {
+        await tx.invoice.update({
+          where: {
+            id: existingInvoice.id,
+          },
+          data: {
+            paymentMethod: PaymentMethod.QR_PAYMENT,
+            totalAmount: currentPayment.amount,
+          },
+        });
+
+        return;
+      }
+
+      await tx.invoice.create({
+        data: {
+          orderId: currentPayment.orderId,
+          paymentMethod: PaymentMethod.QR_PAYMENT,
+          totalAmount: currentPayment.amount,
+        },
+      });
+
+      return;
+    }
+
+    if (nextOrderStatus !== OrderStatus.PAID) {
+      return;
+    }
 
     const billOrderIds =
       currentPayment.order.session?.orders

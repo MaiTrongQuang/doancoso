@@ -10,6 +10,7 @@ import {
   buildSepayTransferDescription,
   buildSepayQrUrl,
   buildSepayTransferCode,
+  canCreateSepayPaymentForOrderStatus,
   getSepayQrDescription,
   normalizeSepayText,
 } from "@/lib/sepay-payment";
@@ -218,9 +219,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (order.status !== OrderStatus.SERVED) {
+    if (!canCreateSepayPaymentForOrderStatus(order.status)) {
       return NextResponse.json(
-        { message: "Chỉ có thể tạo QR cho đơn đã được phục vụ." },
+        { message: "Chỉ có thể tạo QR cho đơn chờ thanh toán hoặc đã phục vụ." },
         { status: 400 },
       );
     }
@@ -248,21 +249,26 @@ export async function POST(request: Request) {
     }
 
     const billOrders = order.session?.orders ?? [order];
-    const billOrderStatuses = billOrders.map((billOrder) => billOrder.status);
+    const amount =
+      order.status === OrderStatus.PENDING
+        ? order.totalAmount
+        : billOrders
+            .filter((billOrder) => billOrder.status === OrderStatus.SERVED)
+            .reduce((total, billOrder) => total + billOrder.totalAmount, 0);
 
-    if (!canPayDiningSession(billOrderStatuses)) {
-      return NextResponse.json(
-        {
-          message:
-            "Chỉ có thể tạo QR khi tất cả đơn trong phiên bàn đã được phục vụ.",
-        },
-        { status: 400 },
-      );
+    if (order.status === OrderStatus.SERVED) {
+      const billOrderStatuses = billOrders.map((billOrder) => billOrder.status);
+
+      if (!canPayDiningSession(billOrderStatuses)) {
+        return NextResponse.json(
+          {
+            message:
+              "Chỉ có thể tạo QR khi tất cả đơn trong phiên bàn đã được phục vụ.",
+          },
+          { status: 400 },
+        );
+      }
     }
-
-    const amount = billOrders
-      .filter((billOrder) => billOrder.status === OrderStatus.SERVED)
-      .reduce((total, billOrder) => total + billOrder.totalAmount, 0);
 
     if (amount <= 0) {
       return NextResponse.json(

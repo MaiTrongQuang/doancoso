@@ -13,6 +13,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   applyCashierOrderStatusPatch,
+  getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
   removeSettledBillOrders,
 } from "@/lib/cashier-payment-state";
@@ -126,14 +127,20 @@ const paymentOptions: Array<{
   },
   {
     value: "BANK_TRANSFER",
-    label: "Thanh toán QR",
-    description: "Xác nhận khách đã chuyển khoản hoặc quét QR tại quầy.",
+    label: "Chuyển khoản đã nhận",
+    description: "Dùng khi khách đã chuyển khoản ngoài QR tự động.",
+  },
+  {
+    value: "QR_PAYMENT",
+    label: "Quét QR tự động",
+    description:
+      "Tạo mã QR ngân hàng; hệ thống tự xác nhận khi nhận giao dịch.",
   },
 ];
 
 const paymentLabel: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR",
+  BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
 const cashierVisibleStatuses = ["PENDING"] as const;
@@ -177,14 +184,6 @@ function findSettledBillOrder(
         : order.id === bill.orderId,
     ) ?? null
   );
-}
-
-function getPayButtonLabel({
-  isPaying,
-}: {
-  isPaying: boolean;
-}) {
-  return isPaying ? "Đang xác nhận..." : "Xác nhận đã thanh toán";
 }
 
 function normalizeDraftText(value: string | null) {
@@ -779,6 +778,11 @@ export function CashierOrderPayment() {
       return;
     }
 
+    if (paymentMethod === "QR_PAYMENT") {
+      await handleCreateQrPayment();
+      return;
+    }
+
     setMessage("");
     setError("");
     setPaymentSuccess(null);
@@ -831,6 +835,54 @@ export function CashierOrderPayment() {
         caughtError instanceof Error
           ? caughtError.message
           : "Không thể xác nhận thanh toán đơn.",
+      );
+    } finally {
+      setIsPaying(false);
+    }
+  }
+
+  async function handleCreateQrPayment() {
+    if (!selectedOrder) {
+      setError("Vui lòng chọn đơn cần thanh toán.");
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setPaymentSuccess(null);
+    setIsPaying(true);
+
+    try {
+      const response = await fetch("/api/payments/sepay/create", {
+        body: JSON.stringify({
+          orderId: selectedOrder.id,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const result = (await response.json()) as {
+        message?: string;
+        data?: SepayPayment;
+      };
+
+      if (!response.ok || !result.data) {
+        throw new Error(
+          getErrorMessage(result, "Không thể tạo mã QR thanh toán."),
+        );
+      }
+
+      setQrPayment(result.data);
+      setMessage(
+        result.message ??
+          "Đã tạo mã QR. Hệ thống sẽ tự xác nhận khi ngân hàng báo giao dịch.",
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Không thể tạo mã QR thanh toán.",
       );
     } finally {
       setIsPaying(false);
@@ -1285,12 +1337,17 @@ export function CashierOrderPayment() {
                         isPaying ||
                         isSavingOrder ||
                         hasDraftChanges ||
+                        qrPayment?.status === "PENDING" ||
                         draftTotalAmount <= 0
                       }
                       onClick={handlePay}
                       type="button"
                     >
-                      {getPayButtonLabel({ isPaying })}
+                      {getCashierPaymentActionLabel({
+                        hasPendingQrPayment: qrPayment?.status === "PENDING",
+                        isPaying,
+                        paymentMethod,
+                      })}
                     </button>
                     <button
                       className="pos-button-danger mt-2 w-full disabled:cursor-not-allowed disabled:opacity-60"

@@ -52,7 +52,7 @@ type AdminInvoice = {
 
 const paymentLabel: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR",
+  BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
 

@@ -4,8 +4,10 @@ import {
   buildSepayQrUrl,
   buildSepayTransferCode,
   canConfirmSepayPayment,
+  canCreateSepayPaymentForOrderStatus,
   extractSepayTransferCode,
   getSepayQrDescription,
+  getOrderStatusAfterSepayPayment,
   isIncomingSepayTransfer,
   normalizeSepayAmount,
   normalizeSepayText,
@@ -81,6 +83,13 @@ assert.equal(canConfirmSepayPayment("PAID"), false);
 assert.equal(canConfirmSepayPayment("CANCELLED"), false);
 assert.equal(canConfirmSepayPayment("EXPIRED"), false);
 assert.equal(canConfirmSepayPayment("FAILED"), false);
+
+assert.equal(canCreateSepayPaymentForOrderStatus("PENDING"), true);
+assert.equal(canCreateSepayPaymentForOrderStatus("SERVED"), true);
+assert.equal(canCreateSepayPaymentForOrderStatus("CONFIRMED"), false);
+assert.equal(getOrderStatusAfterSepayPayment("PENDING"), "CONFIRMED");
+assert.equal(getOrderStatusAfterSepayPayment("SERVED"), "PAID");
+assert.equal(getOrderStatusAfterSepayPayment("CONFIRMED"), null);
 
 assert.equal(normalizeSepayAmount(125000), 125000);
 assert.equal(normalizeSepayAmount("125,000.90"), 125000);

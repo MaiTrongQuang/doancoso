@@ -121,7 +121,7 @@ const paymentToneClassName: Record<string, string> = {
 
 const invoiceMethodLabel: Record<string, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Thanh toán QR",
+  BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
 

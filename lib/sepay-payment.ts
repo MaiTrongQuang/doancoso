@@ -9,6 +9,14 @@ export type SepayPaymentLifecycleStatus =
   | "CANCELLED"
   | "EXPIRED";
 
+export type SepayPaymentOrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "SERVED"
+  | "PAID"
+  | "CANCELLED";
+
 function normalizeTransferCodeSegment(value: string) {
   return value.replace(/[^0-9a-z]/gi, "").toUpperCase();
 }
@@ -27,6 +35,26 @@ function normalizeDescriptionSegment(value: string) {
 
 export function canConfirmSepayPayment(status: SepayPaymentLifecycleStatus) {
   return status === "PENDING";
+}
+
+export function canCreateSepayPaymentForOrderStatus(
+  status: SepayPaymentOrderStatus,
+) {
+  return status === "PENDING" || status === "SERVED";
+}
+
+export function getOrderStatusAfterSepayPayment(
+  status: SepayPaymentOrderStatus,
+) {
+  if (status === "PENDING") {
+    return "CONFIRMED";
+  }
+
+  if (status === "SERVED") {
+    return "PAID";
+  }
+
+  return null;
 }
 
 export function buildSepayTransferCode(orderId: number, suffix: string) {
