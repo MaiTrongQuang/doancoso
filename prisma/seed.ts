@@ -83,6 +83,12 @@ const products = [
     categoryName: "Trà & trà sữa",
   },
   {
+    name: "Trà đá",
+    description: "Trà đá mát lạnh",
+    price: 10000,
+    categoryName: "Trà & trà sữa",
+  },
+  {
     name: "Trà sữa truyền thống",
     description: "Trà sữa đậm vị trà, béo nhẹ",
     price: 38000,
