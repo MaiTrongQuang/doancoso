@@ -85,6 +85,7 @@ const products = [
   {
     name: "Trà đá",
     description: "Trà đá mát lạnh",
+    imageUrl: "/images/products/tra-da.jpg",
     price: 10000,
     categoryName: "Trà & trà sữa",
   },
@@ -320,6 +321,7 @@ async function seedProducts() {
       price: product.price,
       categoryId,
       status: ProductStatus.AVAILABLE,
+      ...("imageUrl" in product ? { imageUrl: product.imageUrl } : {}),
     };
 
     if (existingProduct) {
