@@ -13,9 +13,12 @@ type CustomerOrderProduct = {
 
 type CustomerSubmittedOrder = {
   id: number;
+  sessionId: number | null;
   status: OrderStatus;
   totalAmount: number;
 };
+
+export { getOrderPaymentReferenceLabel as getCustomerOrderPaymentLabel } from "./order-payment-reference";
 
 export function buildCustomerOrderDraft({
   items,
@@ -54,6 +57,7 @@ export function buildCustomerOrderDraft({
 export function serializeCustomerSubmittedOrder(order: CustomerSubmittedOrder) {
   return {
     id: order.id,
+    sessionId: order.sessionId,
     status: order.status,
     totalAmount: order.totalAmount,
   };

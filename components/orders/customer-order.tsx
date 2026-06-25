@@ -10,6 +10,7 @@ import {
 import { getCategoryContextIds } from "./customer-order-navigation";
 import { customerAiSampleQuestions } from "@/lib/ai-insights";
 import { formatMoney } from "@/lib/format-money";
+import { getOrderPaymentReferenceLabel } from "@/lib/order-payment-reference";
 import {
   drinkOptionLevels,
   formatOrderItemNoteWithOptions,
@@ -50,6 +51,7 @@ type SubmitResponse = {
   message?: string;
   data?: {
     id: number;
+    sessionId: number | null;
     totalAmount: number;
     status: string;
   };
@@ -1296,8 +1298,13 @@ export function CustomerOrder({
               {message}
               {submittedOrder ? (
                 <div className="mt-3 rounded-lg bg-white/85 p-3 text-[#1a1c1f]">
-                  <p>Đơn #{submittedOrder.id}</p>
-                  <p>Mang mã đơn này ra quầy để thanh toán.</p>
+                  <p>{getOrderPaymentReferenceLabel(submittedOrder)}</p>
+                  <p>Mang mã này ra quầy để thanh toán.</p>
+                  {submittedOrder.sessionId ? (
+                    <p className="text-xs font-semibold text-[#625b50]">
+                      Đơn vừa gửi: #{submittedOrder.id}
+                    </p>
+                  ) : null}
                   <p>
                     Trạng thái:{" "}
                     {statusLabel[submittedOrder.status] ??

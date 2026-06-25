@@ -19,6 +19,7 @@ import {
 } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
 import { getInvoicePrintHref } from "@/lib/invoice-links";
+import { getOrderPaymentReferenceLabel } from "@/lib/order-payment-reference";
 import { getPaymentPollingDelay } from "@/lib/payment-polling";
 
 type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
@@ -170,7 +171,7 @@ function formatDateTime(value: string) {
 }
 
 function getBillLabel(order: { id: number; sessionId: number | null }) {
-  return order.sessionId ? `Phiên #${order.sessionId}` : `Đơn #${order.id}`;
+  return getOrderPaymentReferenceLabel(order);
 }
 
 function findSettledBillOrder(
@@ -1095,9 +1096,7 @@ export function CashierOrderPayment() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-[#625b50]">
-                        {order.sessionId
-                          ? `Phiên #${order.sessionId}`
-                          : `Đơn #${order.id}`}
+                        {getBillLabel(order)}
                       </p>
                       <p className="mt-1 text-lg font-bold text-[#1f2933]">
                         {order.table.name}
@@ -1135,9 +1134,7 @@ export function CashierOrderPayment() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold text-[#6d645a]">
-                      {selectedOrder.sessionId
-                        ? `Chi tiết phiên #${selectedOrder.sessionId}`
-                        : `Chi tiết đơn #${selectedOrder.id}`}
+                      Chi tiết {getBillLabel(selectedOrder).toLowerCase()}
                     </p>
                     <h2 className="mt-1 text-2xl font-black text-[#172027]">
                       {selectedOrder.table.name}

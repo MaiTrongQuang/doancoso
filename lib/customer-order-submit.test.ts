@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { OrderStatus } from "@prisma/client";
 import {
   buildCustomerOrderDraft,
+  getCustomerOrderPaymentLabel,
   serializeCustomerSubmittedOrder,
 } from "./customer-order-submit";
 
@@ -50,12 +51,30 @@ assert.deepEqual(draft, {
 
 const submittedOrder = serializeCustomerSubmittedOrder({
   id: 12,
+  sessionId: 7,
   status: OrderStatus.PENDING,
   totalAmount: 80_000,
 });
 
 assert.deepEqual(submittedOrder, {
   id: 12,
+  sessionId: 7,
   status: OrderStatus.PENDING,
   totalAmount: 80_000,
 });
+
+assert.equal(
+  getCustomerOrderPaymentLabel({
+    id: 76,
+    sessionId: 44,
+  }),
+  "Phiên #44",
+);
+
+assert.equal(
+  getCustomerOrderPaymentLabel({
+    id: 76,
+    sessionId: null,
+  }),
+  "Đơn #76",
+);

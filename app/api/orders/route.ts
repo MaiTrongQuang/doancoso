@@ -21,6 +21,7 @@ import {
 } from "@/lib/order-read-model";
 import {
   buildCustomerOrderDraft,
+  getCustomerOrderPaymentLabel,
   serializeCustomerSubmittedOrder,
 } from "@/lib/customer-order-submit";
 
@@ -45,6 +46,7 @@ type CustomerOrderItemDraft = {
 
 type CreatedCustomerOrder = {
   id: number;
+  sessionId: number | null;
   status: OrderStatus;
   totalAmount: number;
 };
@@ -348,6 +350,7 @@ async function createCustomerOrder({
         CROSS JOIN session_row
         RETURNING
           id,
+          session_id AS "sessionId",
           status::text AS status,
           total_amount AS "totalAmount"
       ),
@@ -387,6 +390,7 @@ async function createCustomerOrder({
       )
       SELECT
         id,
+        "sessionId",
         status,
         "totalAmount"
       FROM created_order
@@ -477,8 +481,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message:
-          `Đã gửi đơn #${order.id}. Vui lòng thanh toán tại quầy để quán chuyển món sang pha chế.`,
+        message: `Đã gửi đơn. Mang mã ${getCustomerOrderPaymentLabel(order)} ra quầy để thanh toán và quán chuyển món sang pha chế.`,
         data: serializeCustomerSubmittedOrder(order),
       },
       { status: 201 },
