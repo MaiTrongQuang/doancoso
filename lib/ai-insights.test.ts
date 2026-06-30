@@ -12,36 +12,109 @@ import {
 const parsed = parseGeminiJsonObject(`
 Here is the JSON:
 {
-  "summary": "Doanh thu ổn",
-  "bestShifts": ["18:00-22:00"],
-  "risks": ["Ca sáng thấp"],
-  "recommendations": ["Đẩy combo trà"],
-  "promotionIdeas": ["Mua trà tặng bánh"]
+  "headline": "Doanh thu ổn nhưng cần kéo ca sáng",
+  "narrative": "Ca tối đang giữ doanh thu, ca sáng chưa tạo đủ hóa đơn.",
+  "likelyCauses": ["Khách sáng ít gọi món kèm"],
+  "priorityActions": [
+    {
+      "title": "Đẩy combo cà phê sáng",
+      "reason": "Ca sáng có hóa đơn thấp hơn ca tối",
+      "action": "Đưa combo cà phê + bánh lên đầu menu QR trong khung 06:00-10:00"
+    }
+  ],
+  "riskAlerts": [
+    {
+      "title": "Ca sáng yếu",
+      "evidence": "Doanh thu thấp hơn các ca còn lại",
+      "action": "Theo dõi thêm 2 ngày trước khi giảm nhân sự"
+    }
+  ],
+  "followUpQuestions": ["Vì sao ca sáng thấp?"]
 }
 `);
 
 assert.deepEqual(parsed, {
-  summary: "Doanh thu ổn",
-  bestShifts: ["18:00-22:00"],
-  risks: ["Ca sáng thấp"],
-  recommendations: ["Đẩy combo trà"],
-  promotionIdeas: ["Mua trà tặng bánh"],
+  headline: "Doanh thu ổn nhưng cần kéo ca sáng",
+  narrative: "Ca tối đang giữ doanh thu, ca sáng chưa tạo đủ hóa đơn.",
+  likelyCauses: ["Khách sáng ít gọi món kèm"],
+  priorityActions: [
+    {
+      title: "Đẩy combo cà phê sáng",
+      reason: "Ca sáng có hóa đơn thấp hơn ca tối",
+      action: "Đưa combo cà phê + bánh lên đầu menu QR trong khung 06:00-10:00",
+    },
+  ],
+  riskAlerts: [
+    {
+      title: "Ca sáng yếu",
+      evidence: "Doanh thu thấp hơn các ca còn lại",
+      action: "Theo dõi thêm 2 ngày trước khi giảm nhân sự",
+    },
+  ],
+  followUpQuestions: ["Vì sao ca sáng thấp?"],
 });
 
 const insight = toAdminInsight({
-  summary: "Tháng tốt",
-  bestShifts: ["06:00-10:00"],
-  risks: "không phải mảng",
-  recommendations: ["Khen thưởng ca tối"],
-  promotionIdeas: ["Combo cà phê + bánh"],
+  headline: "Tháng tốt",
+  narrative: "Ca tối kéo phần lớn doanh thu.",
+  likelyCauses: ["Khách tối gọi hóa đơn lớn"],
+  priorityActions: [
+    {
+      title: "Khen thưởng ca tối",
+      reason: "Ca tối đang giữ nhịp doanh thu",
+      action: "Ghi nhận ca tối và nhân rộng cách bán combo",
+    },
+  ],
+  riskAlerts: "không phải mảng",
+  followUpQuestions: ["Món nào nên đẩy ngày mai?"],
 });
 
-assert.equal(insight.summary, "Tháng tốt");
-assert.deepEqual(insight.bestShifts, ["06:00-10:00"]);
-assert.deepEqual(insight.risks, []);
-assert.deepEqual(insight.recommendations, ["Khen thưởng ca tối"]);
+assert.equal(insight.headline, "Tháng tốt");
+assert.equal(insight.narrative, "Ca tối kéo phần lớn doanh thu.");
+assert.deepEqual(insight.likelyCauses, ["Khách tối gọi hóa đơn lớn"]);
+assert.deepEqual(insight.riskAlerts, []);
+assert.deepEqual(insight.priorityActions, [
+  {
+    title: "Khen thưởng ca tối",
+    reason: "Ca tối đang giữ nhịp doanh thu",
+    action: "Ghi nhận ca tối và nhân rộng cách bán combo",
+  },
+]);
+assert.deepEqual(insight.followUpQuestions, ["Món nào nên đẩy ngày mai?"]);
 
 const adminPrompt = buildAdminInsightPrompt({
+  averageInvoiceValue: 100_000,
+  dailyRevenue: [
+    {
+      date: "2026-06-15",
+      label: "15/06",
+      orderCount: 6,
+      paidOrderCount: 4,
+      revenue: 420_000,
+    },
+  ],
+  orderStatusStats: [{ status: "PENDING", label: "Chờ thanh toán", count: 2 }],
+  paymentStats: [
+    {
+      invoiceCount: 2,
+      label: "Thanh toán QR",
+      paymentMethod: "QR_PAYMENT",
+      revenue: 200_000,
+      share: 50,
+    },
+  ],
+  question: "Ngày mai nên đẩy món nào?",
+  recentOrders: [
+    {
+      createdAt: "2026-06-16T01:00:00.000Z",
+      id: 41,
+      itemCount: 2,
+      note: null,
+      status: "PENDING",
+      table: { id: 1, name: "Bàn 1" },
+      totalAmount: 80_000,
+    },
+  ],
   selectedDateLabel: "16/06",
   shiftRevenue: {
     monthLabel: "06/2026",
@@ -57,13 +130,17 @@ const adminPrompt = buildAdminInsightPrompt({
     totalRevenue: 1_200_000,
   },
   todayPaidOrders: 3,
+  todayOrders: 5,
   todayRevenue: 300_000,
+  topTables: [{ tableId: 1, tableName: "Bàn 1", invoiceCount: 2, revenue: 160_000 }],
   topProducts: [{ productName: "Trà sữa", quantity: 12, revenue: 480_000 }],
 });
 
 assert.match(adminPrompt, /06\/2026/);
 assert.match(adminPrompt, /18:00-22:00/);
 assert.match(adminPrompt, /Trà sữa/);
+assert.match(adminPrompt, /Ngày mai nên đẩy món nào/);
+assert.match(adminPrompt, /ưu tiên hành động/i);
 
 const customerPrompt = buildCustomerChatPrompt({
   menuItems: [

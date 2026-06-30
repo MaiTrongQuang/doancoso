@@ -1,21 +1,73 @@
 import { formatMoney } from "@/lib/format-money";
 
 export type AdminInsight = {
-  summary: string;
-  bestShifts: string[];
-  risks: string[];
-  recommendations: string[];
-  promotionIdeas: string[];
+  headline: string;
+  narrative: string;
+  likelyCauses: string[];
+  priorityActions: AdminPriorityAction[];
+  riskAlerts: AdminRiskAlert[];
+  followUpQuestions: string[];
+};
+
+export type AdminPriorityAction = {
+  title: string;
+  reason: string;
+  action: string;
+};
+
+export type AdminRiskAlert = {
+  title: string;
+  evidence: string;
+  action: string;
 };
 
 type AdminPromptSummary = {
   selectedDateLabel: string;
   todayRevenue: number;
+  todayOrders: number;
   todayPaidOrders: number;
+  averageInvoiceValue: number;
+  dailyRevenue: Array<{
+    date: string;
+    label: string;
+    revenue: number;
+    orderCount: number;
+    paidOrderCount: number;
+  }>;
   topProducts: Array<{
     productName: string;
     quantity: number;
     revenue: number;
+  }>;
+  paymentStats: Array<{
+    paymentMethod: string;
+    label: string;
+    invoiceCount: number;
+    revenue: number;
+    share: number;
+  }>;
+  topTables: Array<{
+    tableId: number;
+    tableName: string;
+    invoiceCount: number;
+    revenue: number;
+  }>;
+  orderStatusStats: Array<{
+    status: string;
+    label: string;
+    count: number;
+  }>;
+  recentOrders: Array<{
+    id: number;
+    status: string;
+    totalAmount: number;
+    note: string | null;
+    createdAt: string;
+    table: {
+      id: number;
+      name: string;
+    };
+    itemCount: number;
   }>;
   shiftRevenue: {
     monthLabel: string;
@@ -28,6 +80,7 @@ type AdminPromptSummary = {
       invoiceCount: number;
     }>;
   };
+  question?: string | null;
 };
 
 type CustomerMenuItem = {
@@ -62,6 +115,66 @@ function toStringArray(value: unknown) {
     .filter(Boolean);
 }
 
+function toNonEmptyText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function toPriorityActions(value: unknown): AdminPriorityAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const record =
+        typeof item === "object" && item !== null
+          ? (item as Record<string, unknown>)
+          : {};
+      const title = toNonEmptyText(record.title);
+      const reason = toNonEmptyText(record.reason);
+      const action = toNonEmptyText(record.action);
+
+      if (!title || !action) {
+        return null;
+      }
+
+      return {
+        title,
+        reason: reason || "Dựa trên dữ liệu vận hành hiện có.",
+        action,
+      };
+    })
+    .filter((item): item is AdminPriorityAction => Boolean(item));
+}
+
+function toRiskAlerts(value: unknown): AdminRiskAlert[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const record =
+        typeof item === "object" && item !== null
+          ? (item as Record<string, unknown>)
+          : {};
+      const title = toNonEmptyText(record.title);
+      const evidence = toNonEmptyText(record.evidence);
+      const action = toNonEmptyText(record.action);
+
+      if (!title || !action) {
+        return null;
+      }
+
+      return {
+        title,
+        evidence: evidence || "Chưa đủ dữ liệu chi tiết, cần theo dõi thêm.",
+        action,
+      };
+    })
+    .filter((item): item is AdminRiskAlert => Boolean(item));
+}
+
 function normalizeText(value: string) {
   return value
     .toLowerCase()
@@ -92,26 +205,74 @@ export function toAdminInsight(value: unknown): AdminInsight {
     typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
       : {};
+  const headline = toNonEmptyText(record.headline);
+  const narrative = toNonEmptyText(record.narrative);
 
   return {
-    bestShifts: toStringArray(record.bestShifts),
-    promotionIdeas: toStringArray(record.promotionIdeas),
-    recommendations: toStringArray(record.recommendations),
-    risks: toStringArray(record.risks),
-    summary:
-      typeof record.summary === "string" && record.summary.trim()
-        ? record.summary.trim()
-        : "Chưa có đủ dữ liệu để tạo nhận xét.",
+    followUpQuestions: toStringArray(record.followUpQuestions).slice(0, 4),
+    headline: headline || "Chưa có đủ dữ liệu để kết luận vận hành.",
+    likelyCauses: toStringArray(record.likelyCauses).slice(0, 4),
+    narrative:
+      narrative ||
+      toNonEmptyText(record.summary) ||
+      "AI cần thêm dữ liệu hóa đơn, ca bán và món bán chạy để phân tích rõ hơn.",
+    priorityActions: toPriorityActions(record.priorityActions).slice(0, 4),
+    riskAlerts: toRiskAlerts(record.riskAlerts).slice(0, 3),
   };
 }
 
 export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
+  const dailyLines =
+    summary.dailyRevenue.length > 0
+      ? summary.dailyRevenue
+          .slice(-7)
+          .map(
+            (day) =>
+              `- ${day.label}: ${formatMoney(day.revenue)}, ${day.paidOrderCount} hóa đơn đã thanh toán, ${day.orderCount} đơn tạo`,
+          )
+          .join("\n")
+      : "- Chưa có dữ liệu doanh thu ngày";
   const shiftLines = summary.shiftRevenue.shifts
     .map(
       (shift) =>
         `- ${shift.label}: ${formatMoney(shift.revenue)}, ${shift.invoiceCount} hóa đơn`,
     )
     .join("\n");
+  const paymentLines =
+    summary.paymentStats.length > 0
+      ? summary.paymentStats
+          .map(
+            (payment) =>
+              `- ${payment.label}: ${formatMoney(payment.revenue)}, ${payment.invoiceCount} hóa đơn, ${payment.share}% doanh thu`,
+          )
+          .join("\n")
+      : "- Chưa có dữ liệu thanh toán";
+  const tableLines =
+    summary.topTables.length > 0
+      ? summary.topTables
+          .map(
+            (table) =>
+              `- ${table.tableName}: ${formatMoney(table.revenue)}, ${table.invoiceCount} hóa đơn`,
+          )
+          .join("\n")
+      : "- Chưa có bàn phát sinh hóa đơn";
+  const statusLines =
+    summary.orderStatusStats.length > 0
+      ? summary.orderStatusStats
+          .filter((status) => status.count > 0)
+          .map((status) => `- ${status.label}: ${status.count} đơn`)
+          .join("\n") || "- Không có trạng thái đơn nổi bật"
+      : "- Chưa có dữ liệu trạng thái đơn";
+  const recentOrderLines =
+    summary.recentOrders.length > 0
+      ? summary.recentOrders
+          .slice(0, 5)
+          .map(
+            (order) =>
+              `- Đơn #${order.id} ${order.table.name}: ${order.status}, ${formatMoney(order.totalAmount)}, ${order.itemCount} món`,
+          )
+          .join("\n")
+      : "- Chưa có đơn gần đây";
   const topProductLines =
     summary.topProducts.length > 0
       ? summary.topProducts
@@ -123,22 +284,52 @@ export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
           )
           .join("\n")
       : "- Chưa có món bán chạy trong kỳ";
+  const adminQuestion = toNonEmptyText(summary.question);
 
   return `Bạn là trợ lý phân tích vận hành cho quán cà phê NaNa Cafe.
 Chỉ dựa trên dữ liệu được cung cấp, không bịa số liệu.
-Trả về JSON với các khóa: summary, bestShifts, risks, recommendations, promotionIdeas.
+Không trả lời như dashboard thống kê. Hãy đóng vai cố vấn vận hành: nêu chuyện gì đang xảy ra, vì sao có thể xảy ra, ưu tiên hành động ngay và câu hỏi admin có thể hỏi tiếp.
+Trả về JSON với các khóa:
+- headline: một câu kết luận sắc gọn.
+- narrative: 3-5 câu giải thích bối cảnh vận hành, có nhắc bằng chứng từ dữ liệu.
+- likelyCauses: mảng 2-4 giả thuyết nguyên nhân, không khẳng định quá mức.
+- priorityActions: mảng 2-4 object { title, reason, action }.
+- riskAlerts: mảng 0-3 object { title, evidence, action }.
+- followUpQuestions: mảng 3-4 câu hỏi ngắn admin có thể bấm để hỏi tiếp.
+Nếu dữ liệu ít, nói rõ dữ liệu chưa đủ và đề xuất cách theo dõi tiếp.
 
 Dữ liệu ngày đang xem (${summary.selectedDateLabel}):
 - Doanh thu: ${formatMoney(summary.todayRevenue)}
+- Đơn tạo: ${summary.todayOrders}
 - Hóa đơn đã thanh toán: ${summary.todayPaidOrders}
+- Giá trị hóa đơn trung bình: ${formatMoney(summary.averageInvoiceValue)}
+
+Doanh thu 7 ngày gần nhất trong kỳ xem:
+${dailyLines}
 
 Doanh thu theo ca tháng ${summary.shiftRevenue.monthLabel}:
 - Tổng doanh thu: ${formatMoney(summary.shiftRevenue.totalRevenue)}
 - Tổng hóa đơn: ${summary.shiftRevenue.totalInvoiceCount}
 ${shiftLines}
 
+Thanh toán:
+${paymentLines}
+
+Top bàn:
+${tableLines}
+
 Top món:
-${topProductLines}`;
+${topProductLines}
+
+Trạng thái đơn:
+${statusLines}
+
+Đơn gần đây:
+${recentOrderLines}
+
+Câu hỏi cụ thể của admin: ${
+    adminQuestion || "Hôm nay quán đang vận hành thế nào và nên làm gì ngay?"
+  }`;
 }
 
 export function buildCustomerChatPrompt({

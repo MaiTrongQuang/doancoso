@@ -13,18 +13,42 @@ export const dynamic = "force-dynamic";
 const adminInsightSchema = {
   type: "object",
   properties: {
-    summary: { type: "string" },
-    bestShifts: { type: "array", items: { type: "string" } },
-    risks: { type: "array", items: { type: "string" } },
-    recommendations: { type: "array", items: { type: "string" } },
-    promotionIdeas: { type: "array", items: { type: "string" } },
+    headline: { type: "string" },
+    narrative: { type: "string" },
+    likelyCauses: { type: "array", items: { type: "string" } },
+    priorityActions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          reason: { type: "string" },
+          action: { type: "string" },
+        },
+        required: ["title", "reason", "action"],
+      },
+    },
+    riskAlerts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          evidence: { type: "string" },
+          action: { type: "string" },
+        },
+        required: ["title", "evidence", "action"],
+      },
+    },
+    followUpQuestions: { type: "array", items: { type: "string" } },
   },
   required: [
-    "summary",
-    "bestShifts",
-    "risks",
-    "recommendations",
-    "promotionIdeas",
+    "headline",
+    "narrative",
+    "likelyCauses",
+    "priorityActions",
+    "riskAlerts",
+    "followUpQuestions",
   ],
 } as const;
 
@@ -56,10 +80,13 @@ export async function POST(request: Request) {
       month: normalizeOptionalString(body?.month),
     });
     const text = await generateGeminiContent({
-      prompt: buildAdminInsightPrompt(dashboardSummary),
+      prompt: buildAdminInsightPrompt({
+        ...dashboardSummary,
+        question: normalizeOptionalString(body?.question),
+      }),
       responseJsonSchema: adminInsightSchema,
       systemInstruction:
-        "Bạn là chuyên gia vận hành POS quán cà phê. Trả lời đúng JSON schema, không thêm markdown.",
+        "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, không thêm markdown, không bịa số liệu.",
     });
     const insight = toAdminInsight(parseGeminiJsonObject(text));
 

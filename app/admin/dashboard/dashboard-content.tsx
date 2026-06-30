@@ -82,12 +82,25 @@ type ShiftRevenue = {
   shifts: ShiftRevenueItem[];
 };
 
+type AdminAiAction = {
+  title: string;
+  reason: string;
+  action: string;
+};
+
+type AdminAiRiskAlert = {
+  title: string;
+  evidence: string;
+  action: string;
+};
+
 type AdminAiInsight = {
-  summary: string;
-  bestShifts: string[];
-  risks: string[];
-  recommendations: string[];
-  promotionIdeas: string[];
+  headline: string;
+  narrative: string;
+  likelyCauses: string[];
+  priorityActions: AdminAiAction[];
+  riskAlerts: AdminAiRiskAlert[];
+  followUpQuestions: string[];
 };
 
 type DashboardSummary = {
@@ -124,6 +137,16 @@ const invoiceMethodLabel: Record<string, string> = {
   BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
+
+const defaultAdminAiQuestion =
+  "Hôm nay quán đang vận hành thế nào và nên làm gì ngay?";
+
+const adminAiQuickQuestions = [
+  "Vì sao doanh thu hôm nay thấp?",
+  "Ngày mai nên đẩy món nào?",
+  "Có rủi ro vận hành nào cần xử lý?",
+  "Ca nào cần tối ưu nhân sự?",
+];
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -169,6 +192,7 @@ export function DashboardContent() {
   const [error, setError] = useState("");
   const [aiError, setAiError] = useState("");
   const [aiInsight, setAiInsight] = useState<AdminAiInsight | null>(null);
+  const [aiQuestion, setAiQuestion] = useState(defaultAdminAiQuestion);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -335,17 +359,19 @@ export function DashboardContent() {
     },
   ];
 
-  async function handleGenerateAiInsight() {
+  async function handleGenerateAiInsight(questionOverride?: string) {
     setAiError("");
     setAiInsight(null);
     setIsAiLoading(true);
 
     try {
+      const question = questionOverride ?? aiQuestion;
       const response = await fetch("/api/ai/admin-insights", {
         body: JSON.stringify({
           date: selectedDate || undefined,
           days: periodDays,
           month: selectedShiftMonth || undefined,
+          question: question || defaultAdminAiQuestion,
         }),
         headers: {
           "Content-Type": "application/json",
@@ -381,10 +407,10 @@ export function DashboardContent() {
             <button
               className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isAiLoading || isLoading}
-              onClick={handleGenerateAiInsight}
+              onClick={() => handleGenerateAiInsight()}
               type="button"
             >
-              {isAiLoading ? "AI đang phân tích..." : "Phân tích AI"}
+              {isAiLoading ? "AI đang suy luận..." : "Hỏi AI vận hành"}
             </button>
             <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
               {periodOptions.map((option) => (
@@ -409,44 +435,167 @@ export function DashboardContent() {
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {aiError ? <Alert tone="danger">{aiError}</Alert> : null}
 
-      {aiInsight ? (
-        <Panel className="p-5">
+      <Panel className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <PanelHeader
             className="border-b-0 p-0"
-            title="Nhận xét AI"
-            description="Gợi ý vận hành dựa trên doanh thu, ca bán và món bán chạy hiện có."
+            title="AI trợ lý vận hành"
+            description="Nhận định, nguyên nhân và hành động đề xuất theo dữ liệu POS hiện tại."
           />
-          <p className="mt-4 rounded-2xl bg-[#eef4ef] p-4 text-sm font-bold leading-6 text-[#1f463c]">
-            {aiInsight.summary}
-          </p>
-          <div className="mt-4 grid gap-4 lg:grid-cols-4">
-            {[
-              { label: "Ca nổi bật", values: aiInsight.bestShifts },
-              { label: "Rủi ro", values: aiInsight.risks },
-              { label: "Khuyến nghị", values: aiInsight.recommendations },
-              { label: "Ý tưởng khuyến mãi", values: aiInsight.promotionIdeas },
-            ].map((group) => (
-              <article
-                className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4"
-                key={group.label}
+          <form
+            className="flex w-full flex-col gap-3 lg:max-w-xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleGenerateAiInsight();
+            }}
+          >
+            <div className="flex gap-2">
+              <input
+                className="pos-input"
+                disabled={isAiLoading || isLoading}
+                onChange={(event) => setAiQuestion(event.target.value)}
+                placeholder="Hỏi AI về doanh thu, món bán, ca bán..."
+                value={aiQuestion}
+              />
+              <button
+                className="pos-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isAiLoading || isLoading}
+                type="submit"
               >
+                {isAiLoading ? "Đang hỏi..." : "Hỏi"}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {adminAiQuickQuestions.map((question) => (
+                <button
+                  className="rounded-full border border-[#d6d1c7] bg-white px-3 py-2 text-xs font-black text-[#625b50] transition hover:bg-[#f8f3ea] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isAiLoading || isLoading}
+                  key={question}
+                  onClick={() => {
+                    setAiQuestion(question);
+                    handleGenerateAiInsight(question);
+                  }}
+                  type="button"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </form>
+        </div>
+
+        {aiInsight ? (
+          <div className="mt-5 grid gap-4">
+            <section className="rounded-2xl bg-[#eef4ef] p-5">
+              <p className="text-xs font-black uppercase text-[#2f5d50]">
+                Nhận định chính
+              </p>
+              <h2 className="mt-2 text-2xl font-black leading-tight text-[#172027]">
+                {aiInsight.headline}
+              </h2>
+              <p className="mt-3 text-sm font-semibold leading-6 text-[#31564b]">
+                {aiInsight.narrative}
+              </p>
+            </section>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <section className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4">
                 <h3 className="text-sm font-black text-[#172027]">
-                  {group.label}
+                  Nguyên nhân có thể
                 </h3>
-                <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#625b50]">
-                  {group.values.length > 0 ? (
-                    group.values.map((value) => (
-                      <li key={value}>• {value}</li>
+                <ul className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-[#625b50]">
+                  {aiInsight.likelyCauses.length > 0 ? (
+                    aiInsight.likelyCauses.map((cause) => (
+                      <li key={cause}>• {cause}</li>
                     ))
                   ) : (
-                    <li>Chưa có nhận xét.</li>
+                    <li>AI cần thêm dữ liệu để suy luận nguyên nhân.</li>
                   )}
                 </ul>
-              </article>
-            ))}
+              </section>
+
+              <section className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4">
+                <h3 className="text-sm font-black text-[#172027]">
+                  Cảnh báo cần chú ý
+                </h3>
+                <div className="mt-3 grid gap-3">
+                  {aiInsight.riskAlerts.length > 0 ? (
+                    aiInsight.riskAlerts.map((risk) => (
+                      <article className="rounded-xl bg-red-50 p-3" key={risk.title}>
+                        <p className="font-black text-red-700">{risk.title}</p>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-red-700/80">
+                          {risk.evidence}
+                        </p>
+                        <p className="mt-2 text-sm font-bold leading-6 text-[#3b352d]">
+                          {risk.action}
+                        </p>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="text-sm font-semibold text-[#625b50]">
+                      Chưa thấy cảnh báo lớn trong dữ liệu hiện tại.
+                    </p>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <section className="rounded-2xl border border-[#eadfce] bg-white p-4">
+              <h3 className="text-sm font-black text-[#172027]">
+                Hành động ưu tiên
+              </h3>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {aiInsight.priorityActions.length > 0 ? (
+                  aiInsight.priorityActions.map((action) => (
+                    <article
+                      className="rounded-2xl bg-[#fff7ea] p-4"
+                      key={action.title}
+                    >
+                      <p className="text-base font-black text-[#172027]">
+                        {action.title}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-[#625b50]">
+                        {action.reason}
+                      </p>
+                      <p className="mt-3 text-sm font-black leading-6 text-[#9a5b00]">
+                        {action.action}
+                      </p>
+                    </article>
+                  ))
+                ) : (
+                  <p className="text-sm font-semibold text-[#625b50]">
+                    Chưa có hành động ưu tiên rõ ràng.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            {aiInsight.followUpQuestions.length > 0 ? (
+              <section className="flex flex-wrap gap-2">
+                {aiInsight.followUpQuestions.map((question) => (
+                  <button
+                    className="rounded-full border border-[#2f5d50] bg-white px-3 py-2 text-xs font-black text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isAiLoading}
+                    key={question}
+                    onClick={() => {
+                      setAiQuestion(question);
+                      handleGenerateAiInsight(question);
+                    }}
+                    type="button"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </section>
+            ) : null}
           </div>
-        </Panel>
-      ) : null}
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed border-[#d6d1c7] bg-[#fffdf9] p-5 text-sm font-semibold leading-6 text-[#625b50]">
+            Hãy hỏi AI để nhận bản tư vấn vận hành theo doanh thu, món bán,
+            bàn hoạt động và trạng thái đơn hiện tại.
+          </div>
+        )}
+      </Panel>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((card) => (
