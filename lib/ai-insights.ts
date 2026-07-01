@@ -1,4 +1,8 @@
 import { formatMoney } from "@/lib/format-money";
+import {
+  adminAiQuickQuestions,
+  defaultAdminAiQuestion,
+} from "@/lib/admin-ai-chat";
 
 export type AdminInsight = {
   headline: string;
@@ -96,7 +100,7 @@ type CustomerTopProduct = {
   quantity: number;
 };
 
-const adminNarrativeMaxLength = 170;
+const adminNarrativeMaxLength = 240;
 
 export const customerAiSampleQuestions = [
   "Món nào bán chạy nhất quán?",
@@ -293,44 +297,52 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     normalizedQuestion.includes("can xu ly") ||
     normalizedQuestion.includes("bat thuong");
   const headline = wantsProductPush && topProduct
-    ? `Nên đẩy ${topProduct.productName} trong ca mạnh.`
+    ? `Ưu tiên đẩy ${topProduct.productName} hôm nay.`
     : wantsRisk && pendingOrders > 0
-      ? `Xử lý ${pendingOrders} đơn chờ trước.`
+      ? `Cần xử lý ${pendingOrders} đơn chờ thanh toán.`
       : summary.todayPaidOrders > 0
-        ? `${summary.todayPaidOrders} hóa đơn, doanh thu ${formatMoney(
+        ? `Doanh thu ${formatMoney(
             summary.todayRevenue,
-          )}.`
-        : "Dữ liệu còn mỏng, kiểm tra đơn chờ.";
-  const shortSignals = [
-    topProduct ? `Top món: ${topProduct.productName} (${topProduct.quantity} món)` : "",
-    bestShift ? `ca mạnh ${bestShift.label}` : "",
-    topPayment ? `${topPayment.label} ${topPayment.share}%` : "",
-  ].filter(Boolean);
+          )} từ ${summary.todayPaidOrders} hóa đơn.`
+        : "Dữ liệu còn mỏng, nên kiểm tra đơn chờ.";
+  const productSignal = topProduct
+    ? `${topProduct.productName} đang dẫn top với ${topProduct.quantity} món, tạo ${formatMoney(
+        topProduct.revenue,
+      )}`
+    : "chưa có món dẫn đầu rõ ràng";
+  const shiftSignal = bestShift
+    ? `ca ${bestShift.label} mạnh nhất với ${bestShift.invoiceCount} hóa đơn`
+    : "chưa có ca nổi bật";
+  const paymentSignal = topPayment
+    ? `${topPayment.label} chiếm ${topPayment.share}% doanh thu thanh toán`
+    : "chưa rõ kênh thanh toán chính";
   const priorityActions: AdminPriorityAction[] = [
     topProduct
       ? {
-          title: `Đẩy ${topProduct.productName}`,
-          reason: "Top món đang có tín hiệu tốt.",
+          title: `Ưu tiên ${topProduct.productName}`,
+          reason: `${topProduct.quantity} món, ${formatMoney(
+            topProduct.revenue,
+          )} doanh thu.`,
           action:
             bestShift && bestShift.invoiceCount > 0
-              ? `Đưa lên gợi ý ca ${bestShift.label}.`
-              : "Đưa lên đầu nhóm gợi ý hôm nay.",
+              ? `Đặt món này lên đầu gợi ý trong ca ${bestShift.label}.`
+              : "Đặt món này lên đầu nhóm gợi ý hôm nay.",
         }
       : {
           title: "Tạo món gợi ý mặc định",
           reason: "Chưa có top món đủ rõ.",
-          action: "Chọn 1 đồ uống dễ mua và 1 món kèm.",
+          action: "Chọn một đồ uống dễ mua và một món kèm để thử trong ngày.",
         },
     {
-      title: "Giảm thời gian chờ thanh toán",
+      title: pendingOrders > 0 ? "Chốt đơn chờ thanh toán" : "Giữ nhịp quầy",
       reason:
         pendingOrders > 0
           ? `Có ${pendingOrders} đơn đang chờ thanh toán.`
           : "Luồng thanh toán sạch giúp dữ liệu doanh thu phản ánh nhanh hơn.",
       action:
         pendingOrders > 0
-          ? "Nhắc thu ngân xử lý đơn chờ."
-          : "Mở sẵn màn hình đơn chờ ở giờ cao điểm.",
+          ? "Nhắc thu ngân rà soát và chốt trước khi chuyển đơn sang bếp."
+          : "Mở sẵn màn hình đơn chờ trong giờ cao điểm.",
     },
   ];
 
@@ -348,7 +360,7 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     riskAlerts.push({
       title: "Đơn chờ thanh toán",
       evidence: `${pendingOrders} đơn còn ở trạng thái chờ thanh toán.`,
-      action: "Kiểm tra quầy thu ngân để tránh khách đã gọi nhưng món chưa sang bếp.",
+      action: "Kiểm tra quầy để tránh khách đã gọi nhưng món chưa sang bếp.",
     });
   }
 
@@ -369,11 +381,7 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
   }
 
   return {
-    followUpQuestions: [
-      "Đẩy món nào?",
-      "Ca nào yếu?",
-      "Có đơn kẹt?",
-    ],
+    followUpQuestions: adminAiQuickQuestions.slice(0, 3),
     headline,
     likelyCauses: [
       topProduct
@@ -384,9 +392,9 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
         : "Chưa có ca bán nào đủ mạnh để so sánh.",
     ].slice(0, 2),
     narrative: compactText(
-      `${summary.selectedDateLabel}: ${formatMoney(summary.todayRevenue)} từ ${
-        summary.todayPaidOrders
-      } hóa đơn. ${shortSignals.join("; ") || "Chưa có tín hiệu nổi bật."}.`,
+      `${summary.selectedDateLabel}: doanh thu ${formatMoney(
+        summary.todayRevenue,
+      )} từ ${summary.todayPaidOrders} hóa đơn; ${productSignal}. ${shiftSignal}; ${paymentSignal}.`,
     ),
     priorityActions: priorityActions.slice(0, 2),
     riskAlerts: riskAlerts.slice(0, 1),
@@ -463,11 +471,11 @@ Chỉ dựa trên dữ liệu được cung cấp, không bịa số liệu.
 Không trả lời như dashboard thống kê. Hãy đóng vai cố vấn vận hành: nêu chuyện gì đang xảy ra, vì sao có thể xảy ra, ưu tiên hành động ngay và câu hỏi admin có thể hỏi tiếp.
 Trả về JSON với các khóa:
 - headline: một câu kết luận sắc gọn, tối đa 12 từ.
-- narrative: tối đa 2 câu, ưu tiên số liệu quan trọng nhất.
+- narrative: tối đa 2 câu, ngắn nhưng đủ nghĩa, ưu tiên số liệu quan trọng nhất.
 - likelyCauses: mảng tối đa 2 giả thuyết nguyên nhân, không khẳng định quá mức.
-- priorityActions: mảng tối đa 2 object { title, reason, action }, mỗi trường thật ngắn.
+- priorityActions: mảng tối đa 2 object { title, reason, action }, mỗi trường ngắn nhưng đủ nghĩa.
 - riskAlerts: mảng tối đa 1 object { title, evidence, action }.
-- followUpQuestions: mảng tối đa 3 câu hỏi ngắn admin có thể bấm để hỏi tiếp.
+- followUpQuestions: mảng tối đa 3 câu hỏi ngắn nhưng đủ nghĩa để admin bấm hỏi tiếp.
 Nếu dữ liệu ít, nói rõ dữ liệu chưa đủ và đề xuất cách theo dõi tiếp.
 
 Dữ liệu ngày đang xem (${summary.selectedDateLabel}):
@@ -500,7 +508,7 @@ ${statusLines}
 ${recentOrderLines}
 
 Câu hỏi cụ thể của admin: ${
-    adminQuestion || "Hôm nay nên làm gì?"
+    adminQuestion || defaultAdminAiQuestion
   }`;
 }
 

@@ -100,7 +100,7 @@ const compactInsight = toAdminInsight({
   followUpQuestions: ["Đẩy món nào?", "Ca nào yếu?", "Có đơn kẹt?", "Tạo combo gì?"],
 });
 
-assert.ok(compactInsight.narrative.length <= 170);
+assert.ok(compactInsight.narrative.length <= 240);
 assert.equal(compactInsight.likelyCauses.length, 2);
 assert.equal(compactInsight.priorityActions.length, 2);
 assert.equal(compactInsight.riskAlerts.length, 1);
@@ -169,20 +169,23 @@ assert.match(adminPrompt, /Ngày mai nên đẩy món nào/);
 assert.match(adminPrompt, /ưu tiên hành động/i);
 assert.match(adminPrompt, /tối đa 2 câu/i);
 assert.match(adminPrompt, /mảng tối đa 2/i);
+assert.match(adminPrompt, /ngắn nhưng đủ nghĩa/i);
 
 const fastAdminInsight = buildFastAdminInsight(adminSummary);
 
 assert.match(fastAdminInsight.headline, /Trà sữa/);
 assert.match(fastAdminInsight.narrative, /300\.000/);
 assert.ok(fastAdminInsight.priorityActions.length >= 2);
-assert.ok(fastAdminInsight.narrative.length <= 170);
+assert.ok(fastAdminInsight.narrative.length <= 240);
 assert.ok(fastAdminInsight.priorityActions.length <= 2);
 assert.ok(fastAdminInsight.likelyCauses.length <= 2);
 assert.ok(fastAdminInsight.riskAlerts.length <= 1);
 assert.ok(fastAdminInsight.followUpQuestions.length >= 3);
 assert.ok(fastAdminInsight.followUpQuestions.length <= 3);
 assert.ok(
-  fastAdminInsight.followUpQuestions.every((question) => question.length <= 22),
+  fastAdminInsight.followUpQuestions.every(
+    (question) => question.length >= 20 && question.length <= 36,
+  ),
 );
 
 const customerPrompt = buildCustomerChatPrompt({

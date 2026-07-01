@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         prompt: buildAdminInsightPrompt(promptSummary),
         responseJsonSchema: adminInsightSchema,
         systemInstruction:
-          "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, không thêm markdown, không bịa số liệu.",
+          "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, ngắn nhưng đủ nghĩa, không thêm markdown, không bịa số liệu.",
       });
       const insight = toAdminInsight(parseGeminiJsonObject(text));
 

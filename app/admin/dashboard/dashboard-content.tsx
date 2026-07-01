@@ -9,6 +9,12 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
+import {
+  adminAiQuickQuestions,
+  buildAdminAiRequestKey,
+  defaultAdminAiQuestion,
+  type AdminAiMode,
+} from "@/lib/admin-ai-chat";
 import { buildFastAdminInsight } from "@/lib/ai-insights";
 import { formatMoney } from "@/lib/format-money";
 
@@ -163,15 +169,6 @@ const invoiceMethodLabel: Record<string, string> = {
   QR_PAYMENT: "Thanh toán QR",
 };
 
-const defaultAdminAiQuestion = "Hôm nay nên làm gì?";
-
-const adminAiQuickQuestions = [
-  "Đẩy món nào?",
-  "Doanh thu giảm?",
-  "Có đơn kẹt?",
-  "Ca nào yếu?",
-];
-
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
@@ -273,6 +270,9 @@ function AdminAiInsightBubble({
               <p className="mt-1 text-sm font-black text-[#172027]">
                 {action.title}
               </p>
+              <p className="mt-1 text-xs font-bold leading-5 text-[#8a6a3f]">
+                {action.reason}
+              </p>
               <p className="mt-1 text-sm font-semibold leading-5 text-[#625b50]">
                 {action.action}
               </p>
@@ -316,17 +316,18 @@ export function DashboardContent() {
   const [aiError, setAiError] = useState("");
   const [aiMessages, setAiMessages] = useState<AdminAiChatMessage[]>([
     {
-      content: "Chọn câu hỏi nhanh hoặc nhập một câu ngắn.",
+      content: "Chọn câu hỏi nhanh hoặc nhập câu hỏi vận hành.",
       id: 1,
       role: "assistant",
       status: "final",
     },
   ]);
   const [aiQuestion, setAiQuestion] = useState(defaultAdminAiQuestion);
+  const [lastAiRequestKey, setLastAiRequestKey] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const aiMessageIdRef = useRef(1);
-  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  const lastAiRequestKeyRef = useRef("");
 
   useEffect(() => {
     let isMounted = true;
@@ -381,13 +382,6 @@ export function DashboardContent() {
       isMounted = false;
     };
   }, [periodDays, selectedDate, selectedMonth]);
-
-  useEffect(() => {
-    aiMessagesEndRef.current?.scrollIntoView({
-      block: "end",
-      behavior: "smooth",
-    });
-  }, [aiMessages]);
 
   const maxRevenue = useMemo(
     () =>
@@ -503,9 +497,19 @@ export function DashboardContent() {
     return aiMessageIdRef.current;
   }
 
+  function getAiRequestKey(question: string, mode: AdminAiMode) {
+    return buildAdminAiRequestKey({
+      mode,
+      periodDays,
+      question,
+      selectedDate: selectedDate || data?.selectedDate || "",
+      selectedMonth: selectedShiftMonth,
+    });
+  }
+
   async function handleGenerateAiInsight(
     questionOverride?: string,
-    mode: "fast" | "deep" = "fast",
+    mode: AdminAiMode = "fast",
   ) {
     const question =
       (questionOverride ?? aiQuestion).trim() || defaultAdminAiQuestion;
@@ -516,6 +520,15 @@ export function DashboardContent() {
       return;
     }
 
+    const requestKey = getAiRequestKey(question, mode);
+
+    if (requestKey === lastAiRequestKeyRef.current) {
+      setAiQuestion(question);
+      return;
+    }
+
+    lastAiRequestKeyRef.current = requestKey;
+    setLastAiRequestKey(requestKey);
     setAiError("");
     setAiQuestion(question);
     setIsAiLoading(useDeepAi);
@@ -578,6 +591,8 @@ export function DashboardContent() {
         ),
       );
     } catch (caughtError) {
+      lastAiRequestKeyRef.current = "";
+      setLastAiRequestKey("");
       setAiMessages((messages) =>
         messages.map((message) =>
           message.id === assistantMessageId
@@ -594,6 +609,18 @@ export function DashboardContent() {
     }
   }
 
+  const defaultFastRequestKey = data
+    ? getAiRequestKey(defaultAdminAiQuestion, "fast")
+    : "";
+  const currentFastRequestKey = data ? getAiRequestKey(aiQuestion, "fast") : "";
+  const currentDeepRequestKey = data ? getAiRequestKey(aiQuestion, "deep") : "";
+  const isDefaultFastRepeated =
+    Boolean(defaultFastRequestKey) && defaultFastRequestKey === lastAiRequestKey;
+  const isCurrentFastRepeated =
+    Boolean(currentFastRequestKey) && currentFastRequestKey === lastAiRequestKey;
+  const isCurrentDeepRepeated =
+    Boolean(currentDeepRequestKey) && currentDeepRequestKey === lastAiRequestKey;
+
   return (
     <PageShell maxWidthClassName="max-w-[1440px]">
       <PageHero
@@ -604,11 +631,15 @@ export function DashboardContent() {
           <>
             <button
               className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isAiLoading || isLoading}
+              disabled={isAiLoading || isLoading || isDefaultFastRepeated}
               onClick={() => handleGenerateAiInsight()}
               type="button"
             >
-              {isAiLoading ? "AI sâu..." : "Tóm tắt nhanh"}
+              {isDefaultFastRepeated
+                ? "Đã tóm tắt"
+                : isAiLoading
+                  ? "AI sâu..."
+                  : "Tóm tắt nhanh"}
             </button>
             <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
               {periodOptions.map((option) => (
@@ -662,20 +693,35 @@ export function DashboardContent() {
         </div>
 
         <div aria-label="Câu hỏi nhanh" className="mt-4 flex flex-wrap gap-2">
-          {adminAiQuickQuestions.map((question) => (
-            <button
-              className="rounded-full border border-[#d6d1c7] bg-white px-3 py-2 text-sm font-black text-[#3b352d] transition hover:border-[#2f5d50] hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isAiLoading || isLoading}
-              key={question}
-              onClick={() => handleGenerateAiInsight(question)}
-              type="button"
-            >
-              {question}
-            </button>
-          ))}
+          {adminAiQuickQuestions.map((question) => {
+            const quickRequestKey = data ? getAiRequestKey(question, "fast") : "";
+            const isRepeatedQuestion =
+              Boolean(quickRequestKey) && quickRequestKey === lastAiRequestKey;
+
+            return (
+              <button
+                className={
+                  isRepeatedQuestion
+                    ? "rounded-full border border-[#2f5d50] bg-[#eef4ef] px-3 py-2 text-sm font-black text-[#2f5d50] disabled:cursor-default"
+                    : "rounded-full border border-[#d6d1c7] bg-white px-3 py-2 text-sm font-black text-[#3b352d] transition hover:border-[#2f5d50] hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
+                }
+                disabled={isAiLoading || isLoading || isRepeatedQuestion}
+                key={question}
+                onClick={() => handleGenerateAiInsight(question)}
+                title={
+                  isRepeatedQuestion
+                    ? "Câu này đã có câu trả lời mới nhất ở dưới."
+                    : undefined
+                }
+                type="button"
+              >
+                {question}
+              </button>
+            );
+          })}
         </div>
 
-        <section className="mt-4 flex max-h-[380px] min-h-[260px] flex-col gap-3 overflow-y-auto rounded-2xl border border-[#eadfce] bg-[#fbfaf7] p-3 md:p-4">
+        <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-[#eadfce] bg-[#fbfaf7] p-3 md:p-4">
           {aiMessages.map((message) => (
             <div
               className={
@@ -712,7 +758,6 @@ export function DashboardContent() {
               </div>
             </div>
           ))}
-          <div ref={aiMessagesEndRef} />
         </section>
 
         <form
@@ -736,18 +781,22 @@ export function DashboardContent() {
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
               className="pos-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isAiLoading || isLoading}
+              disabled={isAiLoading || isLoading || isCurrentFastRepeated}
               type="submit"
             >
-              Hỏi nhanh
+              {isCurrentFastRepeated ? "Đã hỏi nhanh" : "Hỏi nhanh"}
             </button>
             <button
               className="whitespace-nowrap rounded-full border border-[#2f5d50] bg-white px-4 py-3 text-sm font-black text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isAiLoading || isLoading}
+              disabled={isAiLoading || isLoading || isCurrentDeepRepeated}
               onClick={() => handleGenerateAiInsight(undefined, "deep")}
               type="button"
             >
-              {isAiLoading ? "Đang hỏi..." : "AI sâu"}
+              {isCurrentDeepRepeated
+                ? "Đã hỏi sâu"
+                : isAiLoading
+                  ? "Đang hỏi..."
+                  : "AI sâu"}
             </button>
           </div>
         </form>
