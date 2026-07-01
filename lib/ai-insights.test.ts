@@ -170,6 +170,7 @@ assert.match(adminPrompt, /ưu tiên hành động/i);
 assert.match(adminPrompt, /tối đa 2 câu/i);
 assert.match(adminPrompt, /mảng tối đa 2/i);
 assert.match(adminPrompt, /ngắn nhưng đủ nghĩa/i);
+assert.match(adminPrompt, /không nêu tên nhân viên/i);
 
 const fastAdminInsight = buildFastAdminInsight(adminSummary);
 
@@ -187,6 +188,21 @@ assert.ok(
     (question) => question.length >= 20 && question.length <= 36,
   ),
 );
+
+const rewardAdminInsight = buildFastAdminInsight({
+  ...adminSummary,
+  question: "tôi nên thưởng cho ai",
+});
+
+assert.match(rewardAdminInsight.headline, /Chưa đủ dữ liệu để chọn nhân viên/);
+assert.match(rewardAdminInsight.narrative, /chưa gắn hóa đơn với nhân viên/i);
+assert.match(rewardAdminInsight.narrative, /18:00-22:00/);
+assert.match(rewardAdminInsight.priorityActions[0]?.title ?? "", /Thưởng theo ca/);
+assert.match(
+  rewardAdminInsight.priorityActions[1]?.title ?? "",
+  /Gắn nhân viên vào hóa đơn/,
+);
+assert.match(rewardAdminInsight.riskAlerts[0]?.title ?? "", /Thiếu dữ liệu nhân sự/);
 
 const customerPrompt = buildCustomerChatPrompt({
   menuItems: [

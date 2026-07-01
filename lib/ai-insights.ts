@@ -296,6 +296,63 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     normalizedQuestion.includes("rui ro") ||
     normalizedQuestion.includes("can xu ly") ||
     normalizedQuestion.includes("bat thuong");
+  const wantsStaffReward =
+    normalizedQuestion.includes("thuong") ||
+    normalizedQuestion.includes("khen thuong") ||
+    normalizedQuestion.includes("khen nhan vien");
+  const shiftRewardEvidence =
+    bestShift && bestShift.invoiceCount > 0
+      ? `nhóm trực ca ${bestShift.label} vì ca này tạo ${formatMoney(
+          bestShift.revenue,
+        )} từ ${bestShift.invoiceCount} hóa đơn`
+      : "nhóm trực ca có xác nhận tốt nhất trong sổ phân công";
+
+  if (wantsStaffReward) {
+    return {
+      followUpQuestions: [
+        "Ca nào hiệu quả nhất?",
+        "Bàn nào đóng góp nhiều?",
+        "Có đơn nào cần xử lý?",
+      ],
+      headline: "Chưa đủ dữ liệu để chọn nhân viên.",
+      likelyCauses: [
+        "Hóa đơn hiện chưa lưu nhân viên phụ trách.",
+        "Dashboard chỉ có dữ liệu theo món, bàn, ca và thanh toán.",
+      ],
+      narrative: compactText(
+        `${summary.selectedDateLabel}: dashboard chưa gắn hóa đơn với nhân viên nên không nên thưởng theo tên. Có thể tạm thưởng theo ${shiftRewardEvidence}.`,
+      ),
+      priorityActions: [
+        {
+          title: "Thưởng theo ca mạnh",
+          reason:
+            bestShift && bestShift.invoiceCount > 0
+              ? `Ca ${bestShift.label} đang có ${bestShift.invoiceCount} hóa đơn, ${formatMoney(
+                  bestShift.revenue,
+                )} doanh thu.`
+              : "Chưa có dữ liệu nhân viên để chấm theo cá nhân.",
+          action:
+            bestShift && bestShift.invoiceCount > 0
+              ? `Đối chiếu lịch trực rồi khen thưởng nhóm ca ${bestShift.label}.`
+              : "Đối chiếu lịch trực và chọn nhóm có đóng góp rõ nhất.",
+        },
+        {
+          title: "Gắn nhân viên vào hóa đơn",
+          reason: "Cần dữ liệu người xác nhận hoặc phục vụ để thưởng chính xác.",
+          action:
+            "Lưu nhân viên phụ trách khi thanh toán để lần sau AI nêu đúng người.",
+        },
+      ],
+      riskAlerts: [
+        {
+          title: "Thiếu dữ liệu nhân sự",
+          evidence: "Dashboard chưa có doanh thu hoặc số đơn theo từng nhân viên.",
+          action: "Tránh nêu tên cá nhân nếu chưa có lịch trực và phân công.",
+        },
+      ],
+    };
+  }
+
   const headline = wantsProductPush && topProduct
     ? `Ưu tiên đẩy ${topProduct.productName} hôm nay.`
     : wantsRisk && pendingOrders > 0
@@ -468,6 +525,7 @@ export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
 
   return `Bạn là trợ lý phân tích vận hành cho quán cà phê NaNa Cafe.
 Chỉ dựa trên dữ liệu được cung cấp, không bịa số liệu.
+Nếu câu hỏi liên quan thưởng, khen hoặc nhân viên mà dữ liệu không có nhân viên theo hóa đơn, không nêu tên nhân viên; hãy nói rõ thiếu dữ liệu và gợi ý theo ca hoặc nhóm trực.
 Không trả lời như dashboard thống kê. Hãy đóng vai cố vấn vận hành: nêu chuyện gì đang xảy ra, vì sao có thể xảy ra, ưu tiên hành động ngay và câu hỏi admin có thể hỏi tiếp.
 Trả về JSON với các khóa:
 - headline: một câu kết luận sắc gọn, tối đa 12 từ.
