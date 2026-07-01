@@ -204,6 +204,26 @@ assert.match(
 );
 assert.match(rewardAdminInsight.riskAlerts[0]?.title ?? "", /Thiếu dữ liệu nhân sự/);
 
+const greetingAdminInsight = buildFastAdminInsight({
+  ...adminSummary,
+  question: "xin chào",
+});
+
+assert.match(greetingAdminInsight.headline, /Chào/);
+assert.doesNotMatch(greetingAdminInsight.headline, /Doanh thu/);
+assert.doesNotMatch(greetingAdminInsight.narrative, /từ 3 hóa đơn/);
+assert.equal(greetingAdminInsight.priorityActions.length, 0);
+assert.ok(greetingAdminInsight.followUpQuestions.length >= 3);
+
+const offTopicAdminInsight = buildFastAdminInsight({
+  ...adminSummary,
+  question: "viết một bài thơ",
+});
+
+assert.match(offTopicAdminInsight.headline, /NaNa POS|vận hành/);
+assert.doesNotMatch(offTopicAdminInsight.headline, /Doanh thu/);
+assert.equal(offTopicAdminInsight.priorityActions.length, 0);
+
 const periodDailyRevenue = [
   {
     date: "2026-06-14",

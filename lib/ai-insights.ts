@@ -199,6 +199,59 @@ function normalizeText(value: string) {
     .replace(/đ/g, "d");
 }
 
+function normalizeIntentText(value: string) {
+  return normalizeText(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isGreetingAdminQuestion(normalizedQuestion: string) {
+  return [
+    "chao",
+    "xin chao",
+    "hello",
+    "hi",
+    "alo",
+    "hey",
+    "chao ai",
+    "xin chao ai",
+  ].includes(normalizedQuestion);
+}
+
+const operationalAdminKeywords = [
+  "ban",
+  "bep",
+  "ca",
+  "cashier",
+  "doanh thu",
+  "don",
+  "giam",
+  "hoa don",
+  "hom nay",
+  "khach",
+  "lam gi",
+  "menu",
+  "mon",
+  "ngay mai",
+  "nhan su",
+  "nhan vien",
+  "pos",
+  "quay",
+  "rui ro",
+  "tang",
+  "thanh toan",
+  "thu ngan",
+  "thuong",
+  "van hanh",
+];
+
+function isOperationalAdminQuestion(normalizedQuestion: string) {
+  return operationalAdminKeywords.some((keyword) =>
+    normalizedQuestion.includes(keyword),
+  );
+}
+
 export function parseGeminiJsonObject(text: string) {
   const trimmedText = text.trim();
 
@@ -327,7 +380,7 @@ function findTopPayment(summary: AdminPromptSummary) {
 }
 
 export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight {
-  const normalizedQuestion = normalizeText(summary.question ?? "");
+  const normalizedQuestion = normalizeIntentText(summary.question ?? "");
   const topProduct = findTopProduct(summary);
   const bestShift = findBestShift(summary);
   const weakDay = findWeakRevenueDay(summary);
@@ -379,6 +432,33 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
           bestShift.revenue,
         )} từ ${bestShift.invoiceCount} hóa đơn`
       : "nhóm trực ca có xác nhận tốt nhất trong sổ phân công";
+
+  if (isGreetingAdminQuestion(normalizedQuestion)) {
+    return {
+      followUpQuestions: adminAiQuickQuestions.slice(0, 3),
+      headline: "Chào bạn, mình là trợ lý NaNa POS.",
+      likelyCauses: [],
+      narrative:
+        "Mình có thể hỗ trợ nhanh về doanh thu, đơn chờ, món bán chạy, ca bán và gợi ý vận hành. Bạn muốn xem vấn đề nào trước?",
+      priorityActions: [],
+      riskAlerts: [],
+    };
+  }
+
+  if (
+    normalizedQuestion &&
+    !isOperationalAdminQuestion(normalizedQuestion)
+  ) {
+    return {
+      followUpQuestions: adminAiQuickQuestions.slice(0, 3),
+      headline: "Mình chỉ hỗ trợ vận hành NaNa POS.",
+      likelyCauses: [],
+      narrative:
+        "Câu này chưa nằm trong dữ liệu POS hiện có. Bạn có thể hỏi về doanh thu, đơn hàng, món bán, ca bán, bàn hoạt động hoặc thanh toán.",
+      priorityActions: [],
+      riskAlerts: [],
+    };
+  }
 
   if (wantsStaffReward) {
     return {
@@ -881,6 +961,9 @@ export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
 
   return `Bạn là trợ lý phân tích vận hành cho quán cà phê NaNa Cafe.
 Chỉ dựa trên dữ liệu được cung cấp, không bịa số liệu.
+Luôn trả lời đúng trọng tâm câu hỏi cụ thể của admin; không tự chuyển sang tổng kết doanh thu nếu admin chỉ chào hỏi hoặc hỏi việc khác.
+Nếu admin chỉ chào hỏi, hãy chào lại ngắn gọn và gợi ý họ hỏi về doanh thu, đơn chờ, món bán, ca bán hoặc bàn hoạt động; không phân tích số liệu.
+Nếu câu hỏi không liên quan vận hành POS, hãy nói rõ phạm vi hỗ trợ của bạn và gợi ý 2-3 câu hỏi phù hợp; không bịa dữ liệu.
 Nếu câu hỏi liên quan thưởng, khen hoặc nhân viên mà dữ liệu không có nhân viên theo hóa đơn, không nêu tên nhân viên; hãy nói rõ thiếu dữ liệu và gợi ý theo ca hoặc nhóm trực.
 Không trả lời như dashboard thống kê. Hãy đóng vai cố vấn vận hành: nêu chuyện gì đang xảy ra, vì sao có thể xảy ra, ưu tiên hành động ngay và câu hỏi admin có thể hỏi tiếp.
 Trả về JSON với các khóa:

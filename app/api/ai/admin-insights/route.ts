@@ -85,14 +85,22 @@ export async function POST(request: Request) {
       ...dashboardSummary,
       question,
     };
-    const fastInsight = buildFastAdminInsight(promptSummary);
+    const fallbackInsight = buildFastAdminInsight(promptSummary);
+    const shouldAnswerLocally =
+      Boolean(question) &&
+      fallbackInsight.priorityActions.length === 0 &&
+      fallbackInsight.riskAlerts.length === 0;
+
+    if (shouldAnswerLocally) {
+      return NextResponse.json({ data: fallbackInsight, source: "local" });
+    }
 
     try {
       const text = await generateGeminiContent({
         prompt: buildAdminInsightPrompt(promptSummary),
         responseJsonSchema: adminInsightSchema,
         systemInstruction:
-          "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, ngắn nhưng đủ nghĩa, không thêm markdown, không bịa số liệu hoặc tên nhân viên.",
+          "Bạn là chatbot cố vấn vận hành POS quán cà phê. Trả lời đúng trọng tâm câu hỏi, đúng JSON schema, ngắn nhưng đủ nghĩa, không thêm markdown, không bịa số liệu hoặc tên nhân viên. Nếu admin chào hỏi, chỉ chào lại và gợi ý câu hỏi vận hành.",
       });
       const insight = toAdminInsight(parseGeminiJsonObject(text));
 
@@ -101,9 +109,9 @@ export async function POST(request: Request) {
       console.error(geminiError);
 
       return NextResponse.json({
-        data: fastInsight,
-        message: "Đang dùng bản trả lời nhanh từ dữ liệu POS.",
-        source: "fast",
+        data: fallbackInsight,
+        message: "Đang dùng câu trả lời dự phòng từ dữ liệu POS.",
+        source: "fallback",
       });
     }
   } catch (error) {

@@ -13,9 +13,7 @@ import {
   adminAiQuickQuestions,
   buildAdminAiRequestKey,
   defaultAdminAiQuestion,
-  type AdminAiMode,
 } from "@/lib/admin-ai-chat";
-import { buildFastAdminInsight } from "@/lib/ai-insights";
 import { formatMoney } from "@/lib/format-money";
 
 type DailyRevenue = {
@@ -123,7 +121,7 @@ type AdminAiInsight = {
   followUpQuestions: string[];
 };
 
-type AdminAiMessageStatus = "fast" | "thinking" | "final" | "error";
+type AdminAiMessageStatus = "thinking" | "final" | "fallback" | "error";
 
 type AdminAiChatMessage = {
   id: number;
@@ -207,18 +205,18 @@ function getErrorMessage(value: unknown, fallback: string) {
 
 function getAdminAiStatusLabel(status: AdminAiMessageStatus | undefined) {
   if (status === "thinking") {
-    return "Đang hỏi AI sâu";
-  }
-
-  if (status === "fast") {
-    return "Trả lời tức thì";
+    return "Đang trả lời";
   }
 
   if (status === "error") {
-    return "Bản nhanh";
+    return "Chưa gửi được";
   }
 
-  return "AI sâu";
+  if (status === "fallback") {
+    return "Trợ lý dự phòng";
+  }
+
+  return "NaNa AI";
 }
 
 function AdminAiInsightBubble({
@@ -499,9 +497,8 @@ export function DashboardContent() {
     return aiMessageIdRef.current;
   }
 
-  function getAiRequestKey(question: string, mode: AdminAiMode) {
+  function getAiRequestKey(question: string) {
     return buildAdminAiRequestKey({
-      mode,
       periodDays,
       question,
       selectedDate: selectedDate || data?.selectedDate || "",
@@ -523,20 +520,16 @@ export function DashboardContent() {
     setAnsweredAiRequestKeys(Array.from(answeredAiRequestKeySetRef.current));
   }
 
-  async function handleGenerateAiInsight(
-    questionOverride?: string,
-    mode: AdminAiMode = "fast",
-  ) {
+  async function handleGenerateAiInsight(questionOverride?: string) {
     const question =
       (questionOverride ?? aiQuestion).trim() || defaultAdminAiQuestion;
-    const useDeepAi = mode === "deep";
 
     if (!data) {
       setAiError("Dashboard chưa tải xong dữ liệu.");
       return;
     }
 
-    const requestKey = getAiRequestKey(question, mode);
+    const requestKey = getAiRequestKey(question);
 
     if (answeredAiRequestKeySetRef.current.has(requestKey)) {
       setAiQuestion(question);
@@ -546,14 +539,10 @@ export function DashboardContent() {
     rememberAiRequestKey(requestKey);
     setAiError("");
     setAiQuestion(question);
-    setIsAiLoading(useDeepAi);
+    setIsAiLoading(true);
 
     const userMessageId = createAiMessageId();
     const assistantMessageId = createAiMessageId();
-    const fastInsight = buildFastAdminInsight({
-      ...data,
-      question,
-    });
 
     setAiMessages((messages) => [
       ...messages,
@@ -563,17 +552,12 @@ export function DashboardContent() {
         role: "user",
       },
       {
-        content: "",
+        content: "Mình đang đọc dữ liệu POS và trả lời theo câu hỏi của bạn...",
         id: assistantMessageId,
-        insight: fastInsight,
         role: "assistant",
-        status: useDeepAi ? "thinking" : "fast",
+        status: "thinking",
       },
     ]);
-
-    if (!useDeepAi) {
-      return;
-    }
 
     try {
       const response = await fetch("/api/ai/admin-insights", {
@@ -600,7 +584,7 @@ export function DashboardContent() {
             ? {
                 ...message,
                 insight: result.data as AdminAiInsight,
-                status: result.source === "fast" ? "fast" : "final",
+                status: result.source === "fallback" ? "fallback" : "final",
               }
             : message,
         ),
@@ -612,6 +596,8 @@ export function DashboardContent() {
           message.id === assistantMessageId
             ? {
                 ...message,
+                content:
+                  "Mình chưa gửi được câu hỏi lúc này. Bạn thử lại sau vài giây nhé.",
                 status: "error",
               }
             : message,
@@ -623,14 +609,12 @@ export function DashboardContent() {
     }
   }
 
-  const defaultFastRequestKey = data
-    ? getAiRequestKey(defaultAdminAiQuestion, "fast")
+  const defaultChatRequestKey = data
+    ? getAiRequestKey(defaultAdminAiQuestion)
     : "";
-  const currentFastRequestKey = data ? getAiRequestKey(aiQuestion, "fast") : "";
-  const currentDeepRequestKey = data ? getAiRequestKey(aiQuestion, "deep") : "";
-  const isDefaultFastRepeated = isAnsweredAiRequestKey(defaultFastRequestKey);
-  const isCurrentFastRepeated = isAnsweredAiRequestKey(currentFastRequestKey);
-  const isCurrentDeepRepeated = isAnsweredAiRequestKey(currentDeepRequestKey);
+  const currentChatRequestKey = data ? getAiRequestKey(aiQuestion) : "";
+  const isDefaultChatRepeated = isAnsweredAiRequestKey(defaultChatRequestKey);
+  const isCurrentChatRepeated = isAnsweredAiRequestKey(currentChatRequestKey);
 
   return (
     <PageShell maxWidthClassName="max-w-[1440px]">
@@ -642,15 +626,15 @@ export function DashboardContent() {
           <>
             <button
               className="pos-button-primary disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isAiLoading || isLoading || isDefaultFastRepeated}
+              disabled={isAiLoading || isLoading || isDefaultChatRepeated}
               onClick={() => handleGenerateAiInsight()}
               type="button"
             >
-              {isDefaultFastRepeated
-                ? "Đã tóm tắt"
+              {isDefaultChatRepeated
+                ? "Đã hỏi"
                 : isAiLoading
-                  ? "AI sâu..."
-                  : "Tóm tắt nhanh"}
+                  ? "Đang hỏi..."
+                  : "Hỏi trợ lý"}
             </button>
             <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
               {periodOptions.map((option) => (
@@ -709,7 +693,7 @@ export function DashboardContent() {
 
         <div aria-label="Câu hỏi nhanh" className="mt-4 flex flex-wrap gap-2">
           {adminAiQuickQuestions.map((question) => {
-            const quickRequestKey = data ? getAiRequestKey(question, "fast") : "";
+            const quickRequestKey = data ? getAiRequestKey(question) : "";
             const isRepeatedQuestion = isAnsweredAiRequestKey(quickRequestKey);
 
             return (
@@ -764,9 +748,21 @@ export function DashboardContent() {
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#172027] text-[11px] font-black text-white">
                       AI
                     </div>
-                    <p className="text-sm font-semibold leading-6 text-[#625b50]">
-                      {message.content}
-                    </p>
+                    <div className="min-w-0">
+                      <span className="rounded-full bg-[#eef4ef] px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f5d50]">
+                        {getAdminAiStatusLabel(message.status)}
+                      </span>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-[#625b50]">
+                        {message.content}
+                      </p>
+                      {message.status === "thinking" ? (
+                        <span className="mt-2 flex items-center gap-1 text-xs font-bold text-[#2f5d50]">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50]" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:120ms]" />
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:240ms]" />
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 )}
               </div>
@@ -789,28 +785,20 @@ export function DashboardContent() {
             disabled={isAiLoading || isLoading}
             id="admin-ai-question"
             onChange={(event) => setAiQuestion(event.target.value)}
-            placeholder="Hỏi nhanh về doanh thu, món bán..."
+            placeholder="Nhập câu hỏi cho trợ lý..."
             value={aiQuestion}
           />
-          <div className="grid grid-cols-2 gap-2 sm:flex">
+          <div className="flex">
             <button
               className="pos-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isAiLoading || isLoading || isCurrentFastRepeated}
+              disabled={isAiLoading || isLoading || isCurrentChatRepeated}
               type="submit"
             >
-              {isCurrentFastRepeated ? "Đã hỏi nhanh" : "Hỏi nhanh"}
-            </button>
-            <button
-              className="whitespace-nowrap rounded-full border border-[#2f5d50] bg-white px-4 py-3 text-sm font-black text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isAiLoading || isLoading || isCurrentDeepRepeated}
-              onClick={() => handleGenerateAiInsight(undefined, "deep")}
-              type="button"
-            >
-              {isCurrentDeepRepeated
-                ? "Đã hỏi sâu"
+              {isCurrentChatRepeated
+                ? "Đã hỏi"
                 : isAiLoading
-                  ? "Đang hỏi..."
-                  : "AI sâu"}
+                  ? "Đang gửi..."
+                  : "Gửi"}
             </button>
           </div>
         </form>

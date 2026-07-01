@@ -1,5 +1,3 @@
-export type AdminAiMode = "fast" | "deep";
-
 export const defaultAdminAiQuestion =
   "Hôm nay nên làm gì để tăng doanh thu?";
 
@@ -22,20 +20,18 @@ export function normalizeAdminAiQuestion(question: string) {
 }
 
 export function buildAdminAiRequestKey({
-  mode,
   periodDays,
   question,
   selectedDate,
   selectedMonth,
 }: {
-  mode: AdminAiMode;
   periodDays: number;
   question: string;
   selectedDate: string;
   selectedMonth: string;
 }) {
   return [
-    mode,
+    "chat",
     periodDays,
     selectedDate || "today",
     selectedMonth || "current-month",

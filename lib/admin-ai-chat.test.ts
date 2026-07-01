@@ -27,28 +27,18 @@ assert.equal(
 );
 
 const firstRequestKey = buildAdminAiRequestKey({
-  mode: "fast",
   periodDays: 7,
   question: "Có đơn nào cần xử lý?",
   selectedDate: "2026-07-01",
   selectedMonth: "2026-07",
 });
 const repeatedRequestKey = buildAdminAiRequestKey({
-  mode: "fast",
   periodDays: 7,
   question: "co don nao can xu ly",
   selectedDate: "2026-07-01",
   selectedMonth: "2026-07",
 });
-const deepRequestKey = buildAdminAiRequestKey({
-  mode: "deep",
-  periodDays: 7,
-  question: "Có đơn nào cần xử lý?",
-  selectedDate: "2026-07-01",
-  selectedMonth: "2026-07",
-});
 const anotherDateRequestKey = buildAdminAiRequestKey({
-  mode: "fast",
   periodDays: 7,
   question: "Có đơn nào cần xử lý?",
   selectedDate: "2026-07-02",
@@ -56,5 +46,5 @@ const anotherDateRequestKey = buildAdminAiRequestKey({
 });
 
 assert.equal(firstRequestKey, repeatedRequestKey);
-assert.notEqual(firstRequestKey, deepRequestKey);
 assert.notEqual(firstRequestKey, anotherDateRequestKey);
+assert.doesNotMatch(firstRequestKey, /fast|deep/);
