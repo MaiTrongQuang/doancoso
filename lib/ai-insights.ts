@@ -96,6 +96,8 @@ type CustomerTopProduct = {
   quantity: number;
 };
 
+const adminNarrativeMaxLength = 170;
+
 export const customerAiSampleQuestions = [
   "Món nào bán chạy nhất quán?",
   "Tôi thích ít ngọt thì nên chọn món nào?",
@@ -117,6 +119,16 @@ function toStringArray(value: unknown) {
 
 function toNonEmptyText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function compactText(value: string, maxLength = adminNarrativeMaxLength) {
+  const normalizedValue = value.replace(/\s+/g, " ").trim();
+
+  if (normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
 function toPriorityActions(value: unknown): AdminPriorityAction[] {
@@ -209,15 +221,19 @@ export function toAdminInsight(value: unknown): AdminInsight {
   const narrative = toNonEmptyText(record.narrative);
 
   return {
-    followUpQuestions: toStringArray(record.followUpQuestions).slice(0, 4),
-    headline: headline || "Chưa có đủ dữ liệu để kết luận vận hành.",
-    likelyCauses: toStringArray(record.likelyCauses).slice(0, 4),
-    narrative:
+    followUpQuestions: toStringArray(record.followUpQuestions).slice(0, 3),
+    headline: compactText(
+      headline || "Chưa có đủ dữ liệu để kết luận vận hành.",
+      90,
+    ),
+    likelyCauses: toStringArray(record.likelyCauses).slice(0, 2),
+    narrative: compactText(
       narrative ||
-      toNonEmptyText(record.summary) ||
-      "AI cần thêm dữ liệu hóa đơn, ca bán và món bán chạy để phân tích rõ hơn.",
-    priorityActions: toPriorityActions(record.priorityActions).slice(0, 4),
-    riskAlerts: toRiskAlerts(record.riskAlerts).slice(0, 3),
+        toNonEmptyText(record.summary) ||
+        "AI cần thêm dữ liệu hóa đơn, ca bán và món bán chạy để phân tích rõ hơn.",
+    ),
+    priorityActions: toPriorityActions(record.priorityActions).slice(0, 2),
+    riskAlerts: toRiskAlerts(record.riskAlerts).slice(0, 1),
   };
 }
 
@@ -277,41 +293,33 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     normalizedQuestion.includes("can xu ly") ||
     normalizedQuestion.includes("bat thuong");
   const headline = wantsProductPush && topProduct
-    ? `Nên đẩy ${topProduct.productName} trước, rồi ghép combo theo ca mạnh.`
+    ? `Nên đẩy ${topProduct.productName} trong ca mạnh.`
     : wantsRisk && pendingOrders > 0
-      ? `Cần xử lý ${pendingOrders} đơn chờ thanh toán trước khi phân tích sâu.`
+      ? `Xử lý ${pendingOrders} đơn chờ trước.`
       : summary.todayPaidOrders > 0
-        ? `Hôm nay có ${summary.todayPaidOrders} hóa đơn, doanh thu ${formatMoney(
+        ? `${summary.todayPaidOrders} hóa đơn, doanh thu ${formatMoney(
             summary.todayRevenue,
           )}.`
-        : "Hôm nay dữ liệu còn mỏng, nên ưu tiên kiểm tra đơn chờ và món chủ lực.";
-  const topProductText = topProduct
-    ? `${topProduct.productName} đang dẫn top món với ${topProduct.quantity} món, tạo ${formatMoney(
-        topProduct.revenue,
-      )}`
-    : "chưa có món bán chạy rõ ràng trong ngày đã chọn";
-  const shiftText = bestShift
-    ? `Ca ${bestShift.label} đang mạnh nhất với ${formatMoney(
-        bestShift.revenue,
-      )} từ ${bestShift.invoiceCount} hóa đơn`
-    : "chưa có ca bán nào nổi bật";
-  const paymentText = topPayment
-    ? `${topPayment.label} đang chiếm ${topPayment.share}% doanh thu thanh toán`
-    : "chưa có dữ liệu phương thức thanh toán";
+        : "Dữ liệu còn mỏng, kiểm tra đơn chờ.";
+  const shortSignals = [
+    topProduct ? `Top món: ${topProduct.productName} (${topProduct.quantity} món)` : "",
+    bestShift ? `ca mạnh ${bestShift.label}` : "",
+    topPayment ? `${topPayment.label} ${topPayment.share}%` : "",
+  ].filter(Boolean);
   const priorityActions: AdminPriorityAction[] = [
     topProduct
       ? {
           title: `Đẩy ${topProduct.productName}`,
-          reason: `${topProduct.productName} đang có tín hiệu tốt nhất trong top món.`,
+          reason: "Top món đang có tín hiệu tốt.",
           action:
             bestShift && bestShift.invoiceCount > 0
-              ? `Đưa ${topProduct.productName} lên nhóm gợi ý trong ca ${bestShift.label}.`
-              : `Đưa ${topProduct.productName} lên đầu nhóm gợi ý hôm nay.`,
+              ? `Đưa lên gợi ý ca ${bestShift.label}.`
+              : "Đưa lên đầu nhóm gợi ý hôm nay.",
         }
       : {
           title: "Tạo món gợi ý mặc định",
-          reason: "Chưa có top món đủ rõ để AI chọn một món chủ lực.",
-          action: "Chọn 1 đồ uống giá dễ mua và 1 món kèm để test trong hôm nay.",
+          reason: "Chưa có top món đủ rõ.",
+          action: "Chọn 1 đồ uống dễ mua và 1 món kèm.",
         },
     {
       title: "Giảm thời gian chờ thanh toán",
@@ -321,8 +329,8 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
           : "Luồng thanh toán sạch giúp dữ liệu doanh thu phản ánh nhanh hơn.",
       action:
         pendingOrders > 0
-          ? "Nhắc thu ngân xử lý danh sách đơn chờ trước giờ cao điểm."
-          : "Giữ quầy thanh toán mở sẵn màn hình đơn chờ trong giờ cao điểm.",
+          ? "Nhắc thu ngân xử lý đơn chờ."
+          : "Mở sẵn màn hình đơn chờ ở giờ cao điểm.",
     },
   ];
 
@@ -362,30 +370,26 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
 
   return {
     followUpQuestions: [
-      "Món nào nên đưa lên đầu menu?",
-      "Ca nào đang yếu nhất?",
-      "Có đơn nào đang kẹt vận hành?",
-      "Nên tạo combo gì hôm nay?",
+      "Đẩy món nào?",
+      "Ca nào yếu?",
+      "Có đơn kẹt?",
     ],
     headline,
     likelyCauses: [
       topProduct
-        ? "Doanh thu đang phụ thuộc vào một vài món dẫn đầu."
+        ? "Doanh thu phụ thuộc vào món dẫn đầu."
         : "Chưa đủ hóa đơn để nhận diện món chủ lực.",
       bestShift
-        ? `Ca ${bestShift.label} có lực kéo tốt hơn các ca còn lại.`
+        ? `Ca ${bestShift.label} kéo doanh thu tốt nhất.`
         : "Chưa có ca bán nào đủ mạnh để so sánh.",
-      pendingOrders > 0
-        ? "Một phần đơn có thể chưa chuyển thành doanh thu vì còn chờ thanh toán."
-        : "Luồng thanh toán hiện không lộ điểm nghẽn lớn từ trạng thái đơn.",
-    ],
-    narrative: `Nhìn nhanh ${summary.selectedDateLabel}: doanh thu là ${formatMoney(
-      summary.todayRevenue,
-    )}, với ${summary.todayPaidOrders} hóa đơn đã thanh toán và giá trị trung bình ${formatMoney(
-      summary.averageInvoiceValue,
-    )}. ${topProductText}. ${shiftText}. ${paymentText}.`,
-    priorityActions: priorityActions.slice(0, 4),
-    riskAlerts: riskAlerts.slice(0, 3),
+    ].slice(0, 2),
+    narrative: compactText(
+      `${summary.selectedDateLabel}: ${formatMoney(summary.todayRevenue)} từ ${
+        summary.todayPaidOrders
+      } hóa đơn. ${shortSignals.join("; ") || "Chưa có tín hiệu nổi bật."}.`,
+    ),
+    priorityActions: priorityActions.slice(0, 2),
+    riskAlerts: riskAlerts.slice(0, 1),
   };
 }
 
@@ -458,12 +462,12 @@ export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
 Chỉ dựa trên dữ liệu được cung cấp, không bịa số liệu.
 Không trả lời như dashboard thống kê. Hãy đóng vai cố vấn vận hành: nêu chuyện gì đang xảy ra, vì sao có thể xảy ra, ưu tiên hành động ngay và câu hỏi admin có thể hỏi tiếp.
 Trả về JSON với các khóa:
-- headline: một câu kết luận sắc gọn.
-- narrative: 3-5 câu giải thích bối cảnh vận hành, có nhắc bằng chứng từ dữ liệu.
-- likelyCauses: mảng 2-4 giả thuyết nguyên nhân, không khẳng định quá mức.
-- priorityActions: mảng 2-4 object { title, reason, action }.
-- riskAlerts: mảng 0-3 object { title, evidence, action }.
-- followUpQuestions: mảng 3-4 câu hỏi ngắn admin có thể bấm để hỏi tiếp.
+- headline: một câu kết luận sắc gọn, tối đa 12 từ.
+- narrative: tối đa 2 câu, ưu tiên số liệu quan trọng nhất.
+- likelyCauses: mảng tối đa 2 giả thuyết nguyên nhân, không khẳng định quá mức.
+- priorityActions: mảng tối đa 2 object { title, reason, action }, mỗi trường thật ngắn.
+- riskAlerts: mảng tối đa 1 object { title, evidence, action }.
+- followUpQuestions: mảng tối đa 3 câu hỏi ngắn admin có thể bấm để hỏi tiếp.
 Nếu dữ liệu ít, nói rõ dữ liệu chưa đủ và đề xuất cách theo dõi tiếp.
 
 Dữ liệu ngày đang xem (${summary.selectedDateLabel}):
@@ -496,7 +500,7 @@ ${statusLines}
 ${recentOrderLines}
 
 Câu hỏi cụ thể của admin: ${
-    adminQuestion || "Hôm nay quán đang vận hành thế nào và nên làm gì ngay?"
+    adminQuestion || "Hôm nay nên làm gì?"
   }`;
 }
 

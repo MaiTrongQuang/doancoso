@@ -83,6 +83,29 @@ assert.deepEqual(insight.priorityActions, [
 ]);
 assert.deepEqual(insight.followUpQuestions, ["Món nào nên đẩy ngày mai?"]);
 
+const compactInsight = toAdminInsight({
+  headline: "Doanh thu cần kéo nhẹ",
+  narrative:
+    "Đây là đoạn phân tích rất dài dùng để kiểm tra giao diện báo cáo nhanh. Nội dung này cố tình kéo dài qua nhiều câu để mô phỏng phản hồi AI sâu đang quá dài. Admin chỉ cần phần ngắn gọn để trình bày trong đồ án.",
+  likelyCauses: ["Ca sáng yếu", "Món chủ lực ít được đẩy", "Khách chưa thấy combo"],
+  priorityActions: [
+    { title: "Đẩy trà", reason: "Top món tốt", action: "Đưa lên đầu menu." },
+    { title: "Nhắc quầy", reason: "Có đơn chờ", action: "Xử lý đơn chờ." },
+    { title: "Tạo combo", reason: "Tăng giá trị đơn", action: "Ghép bánh." },
+  ],
+  riskAlerts: [
+    { title: "Đơn chờ", evidence: "2 đơn", action: "Kiểm tra quầy." },
+    { title: "Đơn hủy", evidence: "1 đơn", action: "Xem lý do hủy." },
+  ],
+  followUpQuestions: ["Đẩy món nào?", "Ca nào yếu?", "Có đơn kẹt?", "Tạo combo gì?"],
+});
+
+assert.ok(compactInsight.narrative.length <= 170);
+assert.equal(compactInsight.likelyCauses.length, 2);
+assert.equal(compactInsight.priorityActions.length, 2);
+assert.equal(compactInsight.riskAlerts.length, 1);
+assert.equal(compactInsight.followUpQuestions.length, 3);
+
 const adminSummary = {
   averageInvoiceValue: 100_000,
   dailyRevenue: [
@@ -144,13 +167,23 @@ assert.match(adminPrompt, /18:00-22:00/);
 assert.match(adminPrompt, /Trà sữa/);
 assert.match(adminPrompt, /Ngày mai nên đẩy món nào/);
 assert.match(adminPrompt, /ưu tiên hành động/i);
+assert.match(adminPrompt, /tối đa 2 câu/i);
+assert.match(adminPrompt, /mảng tối đa 2/i);
 
 const fastAdminInsight = buildFastAdminInsight(adminSummary);
 
 assert.match(fastAdminInsight.headline, /Trà sữa/);
 assert.match(fastAdminInsight.narrative, /300\.000/);
 assert.ok(fastAdminInsight.priorityActions.length >= 2);
+assert.ok(fastAdminInsight.narrative.length <= 170);
+assert.ok(fastAdminInsight.priorityActions.length <= 2);
+assert.ok(fastAdminInsight.likelyCauses.length <= 2);
+assert.ok(fastAdminInsight.riskAlerts.length <= 1);
 assert.ok(fastAdminInsight.followUpQuestions.length >= 3);
+assert.ok(fastAdminInsight.followUpQuestions.length <= 3);
+assert.ok(
+  fastAdminInsight.followUpQuestions.every((question) => question.length <= 22),
+);
 
 const customerPrompt = buildCustomerChatPrompt({
   menuItems: [

@@ -163,14 +163,13 @@ const invoiceMethodLabel: Record<string, string> = {
   QR_PAYMENT: "Thanh toán QR",
 };
 
-const defaultAdminAiQuestion =
-  "Hôm nay quán đang vận hành thế nào và nên làm gì ngay?";
+const defaultAdminAiQuestion = "Hôm nay nên làm gì?";
 
 const adminAiQuickQuestions = [
-  "Vì sao doanh thu hôm nay thấp?",
-  "Ngày mai nên đẩy món nào?",
-  "Có rủi ro vận hành nào cần xử lý?",
-  "Ca nào cần tối ưu nhân sự?",
+  "Đẩy món nào?",
+  "Doanh thu giảm?",
+  "Có đơn kẹt?",
+  "Ca nào yếu?",
 ];
 
 function formatDateTime(value: string) {
@@ -211,18 +210,18 @@ function getErrorMessage(value: unknown, fallback: string) {
 
 function getAdminAiStatusLabel(status: AdminAiMessageStatus | undefined) {
   if (status === "thinking") {
-    return "Đang tinh chỉnh bằng Gemini";
+    return "Đang hỏi AI sâu";
   }
 
   if (status === "fast") {
-    return "Trả lời nhanh từ dữ liệu POS";
+    return "Trả lời tức thì";
   }
 
   if (status === "error") {
-    return "Đang dùng bản nhanh";
+    return "Bản nhanh";
   }
 
-  return "Đã cập nhật";
+  return "AI sâu";
 }
 
 function AdminAiInsightBubble({
@@ -236,105 +235,64 @@ function AdminAiInsightBubble({
   onAskFollowUp: (question: string) => void;
   status?: AdminAiMessageStatus;
 }) {
+  const primaryRisk = insight.riskAlerts[0];
+
   return (
-    <div className="grid gap-4">
-      <div className="rounded-2xl bg-[#eef4ef] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f5d50]">
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="rounded-full bg-[#eef4ef] px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f5d50]">
             {getAdminAiStatusLabel(status)}
           </span>
-          {status === "thinking" ? (
-            <span className="flex items-center gap-1 text-xs font-bold text-[#2f5d50]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:120ms]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:240ms]" />
-            </span>
-          ) : null}
+          <h3 className="mt-2 text-base font-black leading-snug text-[#172027]">
+            {insight.headline}
+          </h3>
+          <p className="mt-1 text-sm font-semibold leading-6 text-[#4f5d55]">
+            {insight.narrative}
+          </p>
         </div>
-        <h3 className="mt-3 text-xl font-black leading-tight text-[#172027]">
-          {insight.headline}
-        </h3>
-        <p className="mt-3 text-sm font-semibold leading-6 text-[#31564b]">
-          {insight.narrative}
-        </p>
+        {status === "thinking" ? (
+          <span className="mt-1 flex items-center gap-1 text-xs font-bold text-[#2f5d50]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50]" />
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:120ms]" />
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2f5d50] [animation-delay:240ms]" />
+          </span>
+        ) : null}
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <section className="rounded-2xl border border-[#dfe7df] bg-white p-4">
-          <h4 className="text-sm font-black text-[#172027]">
-            Hành động ưu tiên
-          </h4>
-          <div className="mt-3 divide-y divide-[#eadfce]">
-            {insight.priorityActions.length > 0 ? (
-              insight.priorityActions.map((action) => (
-                <article className="py-3 first:pt-0 last:pb-0" key={action.title}>
-                  <p className="font-black text-[#172027]">{action.title}</p>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-[#625b50]">
-                    {action.reason}
-                  </p>
-                  <p className="mt-2 text-sm font-black leading-6 text-[#9a5b00]">
-                    {action.action}
-                  </p>
-                </article>
-              ))
-            ) : (
-              <p className="text-sm font-semibold text-[#625b50]">
-                Chưa có hành động ưu tiên rõ ràng.
+      {insight.priorityActions.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {insight.priorityActions.slice(0, 2).map((action) => (
+            <article
+              className="rounded-xl border border-[#e5d8c8] bg-[#fffaf2] px-3 py-2.5"
+              key={action.title}
+            >
+              <p className="text-xs font-black uppercase tracking-[0.08em] text-[#9a5b00]">
+                Nên làm
               </p>
-            )}
-          </div>
-        </section>
+              <p className="mt-1 text-sm font-black text-[#172027]">
+                {action.title}
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-[#625b50]">
+                {action.action}
+              </p>
+            </article>
+          ))}
+        </div>
+      ) : null}
 
-        <section className="grid gap-3">
-          <div className="rounded-2xl border border-[#dfe7df] bg-white p-4">
-            <h4 className="text-sm font-black text-[#172027]">
-              Nguyên nhân có thể
-            </h4>
-            <ul className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-[#625b50]">
-              {insight.likelyCauses.length > 0 ? (
-                insight.likelyCauses.map((cause) => (
-                  <li className="rounded-xl bg-[#f8f3ea] px-3 py-2" key={cause}>
-                    {cause}
-                  </li>
-                ))
-              ) : (
-                <li>AI cần thêm dữ liệu để suy luận nguyên nhân.</li>
-              )}
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border border-[#f2d6d6] bg-[#fff8f8] p-4">
-            <h4 className="text-sm font-black text-[#8a1f1f]">
-              Cảnh báo
-            </h4>
-            <div className="mt-3 grid gap-2">
-              {insight.riskAlerts.length > 0 ? (
-                insight.riskAlerts.map((risk) => (
-                  <article className="rounded-xl bg-white p-3" key={risk.title}>
-                    <p className="font-black text-red-700">{risk.title}</p>
-                    <p className="mt-1 text-sm font-semibold leading-6 text-red-700/80">
-                      {risk.evidence}
-                    </p>
-                    <p className="mt-2 text-sm font-bold leading-6 text-[#3b352d]">
-                      {risk.action}
-                    </p>
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm font-semibold text-[#625b50]">
-                  Chưa thấy cảnh báo lớn trong dữ liệu hiện tại.
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-      </div>
+      {primaryRisk ? (
+        <div className="rounded-xl border border-[#f0c8c8] bg-[#fff8f8] px-3 py-2.5 text-sm font-semibold leading-5 text-[#8a1f1f]">
+          <span className="font-black">Chú ý: {primaryRisk.title}.</span>{" "}
+          {primaryRisk.action}
+        </div>
+      ) : null}
 
       {insight.followUpQuestions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {insight.followUpQuestions.map((question) => (
+          {insight.followUpQuestions.slice(0, 3).map((question) => (
             <button
-              className="rounded-full border border-[#2f5d50] bg-white px-3 py-2 text-xs font-black text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-[#d6d1c7] bg-white px-3 py-1.5 text-xs font-black text-[#2f5d50] transition hover:border-[#2f5d50] hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={disabled}
               key={question}
               onClick={() => onAskFollowUp(question)}
@@ -358,8 +316,7 @@ export function DashboardContent() {
   const [aiError, setAiError] = useState("");
   const [aiMessages, setAiMessages] = useState<AdminAiChatMessage[]>([
     {
-      content:
-        "Tôi đang theo dõi doanh thu, món bán, ca bán và trạng thái đơn. Bạn có thể hỏi thẳng về món nên đẩy, rủi ro vận hành hoặc ca cần tối ưu.",
+      content: "Chọn câu hỏi nhanh hoặc nhập một câu ngắn.",
       id: 1,
       role: "assistant",
       status: "final",
@@ -546,9 +503,13 @@ export function DashboardContent() {
     return aiMessageIdRef.current;
   }
 
-  async function handleGenerateAiInsight(questionOverride?: string) {
+  async function handleGenerateAiInsight(
+    questionOverride?: string,
+    mode: "fast" | "deep" = "fast",
+  ) {
     const question =
       (questionOverride ?? aiQuestion).trim() || defaultAdminAiQuestion;
+    const useDeepAi = mode === "deep";
 
     if (!data) {
       setAiError("Dashboard chưa tải xong dữ liệu.");
@@ -557,7 +518,7 @@ export function DashboardContent() {
 
     setAiError("");
     setAiQuestion(question);
-    setIsAiLoading(true);
+    setIsAiLoading(useDeepAi);
 
     const userMessageId = createAiMessageId();
     const assistantMessageId = createAiMessageId();
@@ -578,9 +539,13 @@ export function DashboardContent() {
         id: assistantMessageId,
         insight: fastInsight,
         role: "assistant",
-        status: "thinking",
+        status: useDeepAi ? "thinking" : "fast",
       },
     ]);
+
+    if (!useDeepAi) {
+      return;
+    }
 
     try {
       const response = await fetch("/api/ai/admin-insights", {
@@ -643,7 +608,7 @@ export function DashboardContent() {
               onClick={() => handleGenerateAiInsight()}
               type="button"
             >
-              {isAiLoading ? "AI đang suy luận..." : "Hỏi AI vận hành"}
+              {isAiLoading ? "AI sâu..." : "Tóm tắt nhanh"}
             </button>
             <div className="flex rounded-full border border-[#d6d1c7] bg-white p-1 shadow-sm">
               {periodOptions.map((option) => (
@@ -668,160 +633,124 @@ export function DashboardContent() {
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {aiError ? <Alert tone="danger">{aiError}</Alert> : null}
 
-      <Panel className="overflow-hidden p-0">
-        <div className="bg-[#172027] p-5 text-white">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f2a93b] text-sm font-black text-[#172027]">
-                AI
-              </div>
-              <div>
-                <h2 className="text-xl font-black">Trợ lý vận hành</h2>
-                <p className="mt-1 text-sm font-semibold text-white/70">
-                  Chat với dữ liệu doanh thu, món bán, ca bán và trạng thái đơn.
-                </p>
-              </div>
+      <Panel className="p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#172027] text-sm font-black text-[#f2a93b]">
+              AI
             </div>
-            <div className="grid grid-cols-2 gap-2 text-right sm:flex">
-              <div className="rounded-2xl bg-white/10 px-4 py-2">
-                <p className="text-[11px] font-black uppercase text-white/55">
-                  Doanh thu
-                </p>
-                <p className="mt-1 text-sm font-black">
-                  {formatMoney(data?.todayRevenue ?? 0)}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/10 px-4 py-2">
-                <p className="text-[11px] font-black uppercase text-white/55">
-                  Hóa đơn
-                </p>
-                <p className="mt-1 text-sm font-black">
-                  {data?.todayPaidOrders ?? 0}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-black text-[#172027]">
+                Trợ lý vận hành
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-[#625b50]">
+                Tóm tắt ngắn từ doanh thu, món bán và ca bán.
+              </p>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-black">
+            <span className="rounded-full bg-[#eef4ef] px-3 py-2 text-[#2f5d50]">
+              {formatMoney(data?.todayRevenue ?? 0)}
+            </span>
+            <span className="rounded-full bg-[#f8f3ea] px-3 py-2 text-[#6d645a]">
+              {data?.todayPaidOrders ?? 0} hóa đơn
+            </span>
+            <span className="rounded-full bg-white px-3 py-2 text-[#6d645a] ring-1 ring-[#eadfce]">
+              {data?.topProducts[0]?.productName ?? "Chưa có top món"}
+            </span>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="border-b border-[#eadfce] bg-[#f8f3ea] p-4 lg:border-b-0 lg:border-r">
-            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#6d645a]">
-              Câu hỏi nhanh
-            </p>
-            <div className="mt-3 grid gap-2">
-              {adminAiQuickQuestions.map((question) => (
-                <button
-                  className="rounded-2xl border border-[#d6d1c7] bg-white px-3 py-3 text-left text-sm font-black leading-5 text-[#3b352d] transition hover:border-[#2f5d50] hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isAiLoading || isLoading}
-                  key={question}
-                  onClick={() => handleGenerateAiInsight(question)}
-                  type="button"
-                >
-                  {question}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.08em] text-[#6d645a]">
-                Ngữ cảnh
-              </p>
-              <div className="mt-3 grid gap-3 text-sm font-semibold text-[#625b50]">
-                <div>
-                  <p className="text-[#172027]">Ngày xem</p>
-                  <p>{selectedDateLabel}</p>
-                </div>
-                <div>
-                  <p className="text-[#172027]">Top món</p>
-                  <p>{data?.topProducts[0]?.productName ?? "Chưa có dữ liệu"}</p>
-                </div>
-                <div>
-                  <p className="text-[#172027]">Ca mạnh</p>
-                  <p>
-                    {data?.shiftRevenue.shifts
-                      .slice()
-                      .sort((firstShift, secondShift) =>
-                        secondShift.revenue - firstShift.revenue,
-                      )[0]?.label ?? "Chưa có dữ liệu"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          <section className="flex min-h-[560px] flex-col bg-[#fbfaf7]">
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
-              {aiMessages.map((message) => (
-                <div
-                  className={
-                    message.role === "user"
-                      ? "flex justify-end"
-                      : "flex justify-start"
-                  }
-                  key={message.id}
-                >
-                  <div
-                    className={
-                      message.role === "user"
-                        ? "max-w-[82%] rounded-3xl rounded-br-md bg-[#2f5d50] px-4 py-3 text-sm font-bold leading-6 text-white shadow-sm"
-                        : "max-w-[940px] rounded-3xl rounded-bl-md border border-[#dfe7df] bg-white p-4 text-[#172027] shadow-[0_12px_28px_rgba(31,36,40,0.06)]"
-                    }
-                  >
-                    {message.role === "user" ? (
-                      <p>{message.content}</p>
-                    ) : message.insight ? (
-                      <AdminAiInsightBubble
-                        disabled={isAiLoading}
-                        insight={message.insight}
-                        onAskFollowUp={handleGenerateAiInsight}
-                        status={message.status}
-                      />
-                    ) : (
-                      <div className="flex gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#172027] text-xs font-black text-white">
-                          AI
-                        </div>
-                        <p className="text-sm font-semibold leading-6 text-[#625b50]">
-                          {message.content}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div ref={aiMessagesEndRef} />
-            </div>
-
-            <form
-              className="border-t border-[#eadfce] bg-white p-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleGenerateAiInsight();
-              }}
+        <div aria-label="Câu hỏi nhanh" className="mt-4 flex flex-wrap gap-2">
+          {adminAiQuickQuestions.map((question) => (
+            <button
+              className="rounded-full border border-[#d6d1c7] bg-white px-3 py-2 text-sm font-black text-[#3b352d] transition hover:border-[#2f5d50] hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAiLoading || isLoading}
+              key={question}
+              onClick={() => handleGenerateAiInsight(question)}
+              type="button"
             >
-              <label className="sr-only" htmlFor="admin-ai-question">
-                Câu hỏi cho AI
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="pos-input"
-                  disabled={isAiLoading || isLoading}
-                  id="admin-ai-question"
-                  onChange={(event) => setAiQuestion(event.target.value)}
-                  placeholder="Hỏi về doanh thu, món bán, ca bán..."
-                  value={aiQuestion}
-                />
-                <button
-                  className="pos-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isAiLoading || isLoading}
-                  type="submit"
-                >
-                  {isAiLoading ? "Đang trả lời" : "Gửi"}
-                </button>
-              </div>
-            </form>
-          </section>
+              {question}
+            </button>
+          ))}
         </div>
+
+        <section className="mt-4 flex max-h-[380px] min-h-[260px] flex-col gap-3 overflow-y-auto rounded-2xl border border-[#eadfce] bg-[#fbfaf7] p-3 md:p-4">
+          {aiMessages.map((message) => (
+            <div
+              className={
+                message.role === "user" ? "flex justify-end" : "flex justify-start"
+              }
+              key={message.id}
+            >
+              <div
+                className={
+                  message.role === "user"
+                    ? "max-w-[78%] rounded-2xl rounded-br-md bg-[#2f5d50] px-4 py-2.5 text-sm font-bold leading-6 text-white shadow-sm"
+                    : "max-w-[760px] rounded-2xl rounded-bl-md border border-[#dfe7df] bg-white p-3 text-[#172027] shadow-[0_10px_24px_rgba(31,36,40,0.05)]"
+                }
+              >
+                {message.role === "user" ? (
+                  <p>{message.content}</p>
+                ) : message.insight ? (
+                  <AdminAiInsightBubble
+                    disabled={isAiLoading}
+                    insight={message.insight}
+                    onAskFollowUp={handleGenerateAiInsight}
+                    status={message.status}
+                  />
+                ) : (
+                  <div className="flex gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#172027] text-[11px] font-black text-white">
+                      AI
+                    </div>
+                    <p className="text-sm font-semibold leading-6 text-[#625b50]">
+                      {message.content}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={aiMessagesEndRef} />
+        </section>
+
+        <form
+          className="mt-3 flex flex-col gap-2 md:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleGenerateAiInsight();
+          }}
+        >
+          <label className="sr-only" htmlFor="admin-ai-question">
+            Câu hỏi cho AI
+          </label>
+          <input
+            className="pos-input"
+            disabled={isAiLoading || isLoading}
+            id="admin-ai-question"
+            onChange={(event) => setAiQuestion(event.target.value)}
+            placeholder="Hỏi nhanh về doanh thu, món bán..."
+            value={aiQuestion}
+          />
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button
+              className="pos-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isAiLoading || isLoading}
+              type="submit"
+            >
+              Hỏi nhanh
+            </button>
+            <button
+              className="whitespace-nowrap rounded-full border border-[#2f5d50] bg-white px-4 py-3 text-sm font-black text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isAiLoading || isLoading}
+              onClick={() => handleGenerateAiInsight(undefined, "deep")}
+              type="button"
+            >
+              {isAiLoading ? "Đang hỏi..." : "AI sâu"}
+            </button>
+          </div>
+        </form>
       </Panel>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
