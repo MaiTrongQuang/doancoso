@@ -21,9 +21,9 @@ import {
 } from "@/lib/order-read-model";
 import {
   buildCustomerOrderDraft,
-  getCustomerOrderPaymentLabel,
   serializeCustomerSubmittedOrder,
 } from "@/lib/customer-order-submit";
+import { getOrderPaymentReferenceNumber } from "@/lib/order-payment-reference";
 
 const orderStatuses = new Set<string>(Object.values(OrderStatus));
 
@@ -481,7 +481,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: `Đã gửi đơn. Mang mã ${getCustomerOrderPaymentLabel(order)} ra quầy để thanh toán và quán chuyển món sang pha chế.`,
+        message: `Đã gửi đơn. Mang mã thanh toán #${getOrderPaymentReferenceNumber(order)} ra quầy để thanh toán và quán chuyển món sang pha chế.`,
         data: serializeCustomerSubmittedOrder(order),
       },
       { status: 201 },

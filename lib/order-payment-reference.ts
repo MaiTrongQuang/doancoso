@@ -3,8 +3,14 @@ type OrderPaymentReferenceSource = {
   sessionId: number | null;
 };
 
+export function getOrderPaymentReferenceNumber(
+  order: OrderPaymentReferenceSource,
+) {
+  return order.sessionId ?? order.id;
+}
+
 export function getOrderPaymentReferenceLabel(
   order: OrderPaymentReferenceSource,
 ) {
-  return order.sessionId ? `Phiên #${order.sessionId}` : `Đơn #${order.id}`;
+  return `Mã thanh toán #${getOrderPaymentReferenceNumber(order)}`;
 }
