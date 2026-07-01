@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   buildAdminInsightPrompt,
+  buildFastAdminInsight,
   parseGeminiJsonObject,
   toAdminInsight,
 } from "@/lib/ai-insights";
@@ -74,38 +75,39 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
+    const question = normalizeOptionalString(body?.question);
     const dashboardSummary = await getDashboardSummary({
       date: normalizeOptionalString(body?.date),
       days: normalizeDays(body?.days),
       month: normalizeOptionalString(body?.month),
     });
-    const text = await generateGeminiContent({
-      prompt: buildAdminInsightPrompt({
-        ...dashboardSummary,
-        question: normalizeOptionalString(body?.question),
-      }),
-      responseJsonSchema: adminInsightSchema,
-      systemInstruction:
-        "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, không thêm markdown, không bịa số liệu.",
-    });
-    const insight = toAdminInsight(parseGeminiJsonObject(text));
+    const promptSummary = {
+      ...dashboardSummary,
+      question,
+    };
+    const fastInsight = buildFastAdminInsight(promptSummary);
 
-    return NextResponse.json({ data: insight });
+    try {
+      const text = await generateGeminiContent({
+        prompt: buildAdminInsightPrompt(promptSummary),
+        responseJsonSchema: adminInsightSchema,
+        systemInstruction:
+          "Bạn là cố vấn vận hành POS quán cà phê. Trả lời đúng JSON schema, không thêm markdown, không bịa số liệu.",
+      });
+      const insight = toAdminInsight(parseGeminiJsonObject(text));
+
+      return NextResponse.json({ data: insight, source: "gemini" });
+    } catch (geminiError) {
+      console.error(geminiError);
+
+      return NextResponse.json({
+        data: fastInsight,
+        message: "Đang dùng bản trả lời nhanh từ dữ liệu POS.",
+        source: "fast",
+      });
+    }
   } catch (error) {
     console.error(error);
-
-    if (
-      error instanceof Error &&
-      error.message === "GEMINI_API_KEY is not configured."
-    ) {
-      return NextResponse.json(
-        {
-          message:
-            "Chưa cấu hình GEMINI_API_KEY trên môi trường deploy. Vui lòng thêm biến môi trường rồi deploy lại.",
-        },
-        { status: 500 },
-      );
-    }
 
     return NextResponse.json(
       { message: "Không thể tạo phân tích AI. Vui lòng thử lại sau." },

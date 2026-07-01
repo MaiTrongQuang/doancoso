@@ -221,6 +221,174 @@ export function toAdminInsight(value: unknown): AdminInsight {
   };
 }
 
+function findTopProduct(summary: AdminPromptSummary) {
+  return summary.topProducts[0] ?? null;
+}
+
+function findBestShift(summary: AdminPromptSummary) {
+  return (
+    [...summary.shiftRevenue.shifts].sort(
+      (firstShift, secondShift) => secondShift.revenue - firstShift.revenue,
+    )[0] ?? null
+  );
+}
+
+function findWeakRevenueDay(summary: AdminPromptSummary) {
+  const revenueDays = summary.dailyRevenue.filter(
+    (day) => day.orderCount > 0 || day.paidOrderCount > 0 || day.revenue > 0,
+  );
+
+  return (
+    revenueDays.sort(
+      (firstDay, secondDay) => firstDay.revenue - secondDay.revenue,
+    )[0] ?? null
+  );
+}
+
+function findStatusCount(summary: AdminPromptSummary, status: string) {
+  return (
+    summary.orderStatusStats.find((item) => item.status === status)?.count ?? 0
+  );
+}
+
+function findTopPayment(summary: AdminPromptSummary) {
+  return (
+    [...summary.paymentStats].sort(
+      (firstPayment, secondPayment) =>
+        secondPayment.revenue - firstPayment.revenue,
+    )[0] ?? null
+  );
+}
+
+export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight {
+  const normalizedQuestion = normalizeText(summary.question ?? "");
+  const topProduct = findTopProduct(summary);
+  const bestShift = findBestShift(summary);
+  const weakDay = findWeakRevenueDay(summary);
+  const topPayment = findTopPayment(summary);
+  const pendingOrders = findStatusCount(summary, "PENDING");
+  const cancelledOrders = findStatusCount(summary, "CANCELLED");
+  const wantsProductPush =
+    normalizedQuestion.includes("day mon") ||
+    normalizedQuestion.includes("mon nao") ||
+    normalizedQuestion.includes("ngay mai");
+  const wantsRisk =
+    normalizedQuestion.includes("rui ro") ||
+    normalizedQuestion.includes("can xu ly") ||
+    normalizedQuestion.includes("bat thuong");
+  const headline = wantsProductPush && topProduct
+    ? `Nên đẩy ${topProduct.productName} trước, rồi ghép combo theo ca mạnh.`
+    : wantsRisk && pendingOrders > 0
+      ? `Cần xử lý ${pendingOrders} đơn chờ thanh toán trước khi phân tích sâu.`
+      : summary.todayPaidOrders > 0
+        ? `Hôm nay có ${summary.todayPaidOrders} hóa đơn, doanh thu ${formatMoney(
+            summary.todayRevenue,
+          )}.`
+        : "Hôm nay dữ liệu còn mỏng, nên ưu tiên kiểm tra đơn chờ và món chủ lực.";
+  const topProductText = topProduct
+    ? `${topProduct.productName} đang dẫn top món với ${topProduct.quantity} món, tạo ${formatMoney(
+        topProduct.revenue,
+      )}`
+    : "chưa có món bán chạy rõ ràng trong ngày đã chọn";
+  const shiftText = bestShift
+    ? `Ca ${bestShift.label} đang mạnh nhất với ${formatMoney(
+        bestShift.revenue,
+      )} từ ${bestShift.invoiceCount} hóa đơn`
+    : "chưa có ca bán nào nổi bật";
+  const paymentText = topPayment
+    ? `${topPayment.label} đang chiếm ${topPayment.share}% doanh thu thanh toán`
+    : "chưa có dữ liệu phương thức thanh toán";
+  const priorityActions: AdminPriorityAction[] = [
+    topProduct
+      ? {
+          title: `Đẩy ${topProduct.productName}`,
+          reason: `${topProduct.productName} đang có tín hiệu tốt nhất trong top món.`,
+          action:
+            bestShift && bestShift.invoiceCount > 0
+              ? `Đưa ${topProduct.productName} lên nhóm gợi ý trong ca ${bestShift.label}.`
+              : `Đưa ${topProduct.productName} lên đầu nhóm gợi ý hôm nay.`,
+        }
+      : {
+          title: "Tạo món gợi ý mặc định",
+          reason: "Chưa có top món đủ rõ để AI chọn một món chủ lực.",
+          action: "Chọn 1 đồ uống giá dễ mua và 1 món kèm để test trong hôm nay.",
+        },
+    {
+      title: "Giảm thời gian chờ thanh toán",
+      reason:
+        pendingOrders > 0
+          ? `Có ${pendingOrders} đơn đang chờ thanh toán.`
+          : "Luồng thanh toán sạch giúp dữ liệu doanh thu phản ánh nhanh hơn.",
+      action:
+        pendingOrders > 0
+          ? "Nhắc thu ngân xử lý danh sách đơn chờ trước giờ cao điểm."
+          : "Giữ quầy thanh toán mở sẵn màn hình đơn chờ trong giờ cao điểm.",
+    },
+  ];
+
+  if (bestShift) {
+    priorityActions.push({
+      title: `Tận dụng ca ${bestShift.label}`,
+      reason: `Ca này đang tạo ${formatMoney(bestShift.revenue)} trong tháng.`,
+      action: "Dùng ca này để thử combo hoặc món gợi ý trong 2-3 ngày tới.",
+    });
+  }
+
+  const riskAlerts: AdminRiskAlert[] = [];
+
+  if (pendingOrders > 0) {
+    riskAlerts.push({
+      title: "Đơn chờ thanh toán",
+      evidence: `${pendingOrders} đơn còn ở trạng thái chờ thanh toán.`,
+      action: "Kiểm tra quầy thu ngân để tránh khách đã gọi nhưng món chưa sang bếp.",
+    });
+  }
+
+  if (cancelledOrders > 0) {
+    riskAlerts.push({
+      title: "Có đơn bị hủy",
+      evidence: `${cancelledOrders} đơn đã hủy trong ngày đang xem.`,
+      action: "Xem lại lý do hủy để biết lỗi từ khách, quầy hay bếp.",
+    });
+  }
+
+  if (weakDay && summary.dailyRevenue.length > 1) {
+    riskAlerts.push({
+      title: `Ngày ${weakDay.label} yếu hơn`,
+      evidence: `Doanh thu ngày này chỉ ${formatMoney(weakDay.revenue)}.`,
+      action: "So sánh món bán và ca bán của ngày này với ngày tốt nhất.",
+    });
+  }
+
+  return {
+    followUpQuestions: [
+      "Món nào nên đưa lên đầu menu?",
+      "Ca nào đang yếu nhất?",
+      "Có đơn nào đang kẹt vận hành?",
+      "Nên tạo combo gì hôm nay?",
+    ],
+    headline,
+    likelyCauses: [
+      topProduct
+        ? "Doanh thu đang phụ thuộc vào một vài món dẫn đầu."
+        : "Chưa đủ hóa đơn để nhận diện món chủ lực.",
+      bestShift
+        ? `Ca ${bestShift.label} có lực kéo tốt hơn các ca còn lại.`
+        : "Chưa có ca bán nào đủ mạnh để so sánh.",
+      pendingOrders > 0
+        ? "Một phần đơn có thể chưa chuyển thành doanh thu vì còn chờ thanh toán."
+        : "Luồng thanh toán hiện không lộ điểm nghẽn lớn từ trạng thái đơn.",
+    ],
+    narrative: `Nhìn nhanh ${summary.selectedDateLabel}: doanh thu là ${formatMoney(
+      summary.todayRevenue,
+    )}, với ${summary.todayPaidOrders} hóa đơn đã thanh toán và giá trị trung bình ${formatMoney(
+      summary.averageInvoiceValue,
+    )}. ${topProductText}. ${shiftText}. ${paymentText}.`,
+    priorityActions: priorityActions.slice(0, 4),
+    riskAlerts: riskAlerts.slice(0, 3),
+  };
+}
+
 export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
   const dailyLines =
     summary.dailyRevenue.length > 0

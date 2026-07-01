@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   buildAdminInsightPrompt,
+  buildFastAdminInsight,
   buildCustomerChatPrompt,
   buildFastCustomerChatReply,
   customerAiSampleQuestions,
@@ -82,7 +83,7 @@ assert.deepEqual(insight.priorityActions, [
 ]);
 assert.deepEqual(insight.followUpQuestions, ["Món nào nên đẩy ngày mai?"]);
 
-const adminPrompt = buildAdminInsightPrompt({
+const adminSummary = {
   averageInvoiceValue: 100_000,
   dailyRevenue: [
     {
@@ -134,13 +135,22 @@ const adminPrompt = buildAdminInsightPrompt({
   todayRevenue: 300_000,
   topTables: [{ tableId: 1, tableName: "Bàn 1", invoiceCount: 2, revenue: 160_000 }],
   topProducts: [{ productName: "Trà sữa", quantity: 12, revenue: 480_000 }],
-});
+};
+
+const adminPrompt = buildAdminInsightPrompt(adminSummary);
 
 assert.match(adminPrompt, /06\/2026/);
 assert.match(adminPrompt, /18:00-22:00/);
 assert.match(adminPrompt, /Trà sữa/);
 assert.match(adminPrompt, /Ngày mai nên đẩy món nào/);
 assert.match(adminPrompt, /ưu tiên hành động/i);
+
+const fastAdminInsight = buildFastAdminInsight(adminSummary);
+
+assert.match(fastAdminInsight.headline, /Trà sữa/);
+assert.match(fastAdminInsight.narrative, /300\.000/);
+assert.ok(fastAdminInsight.priorityActions.length >= 2);
+assert.ok(fastAdminInsight.followUpQuestions.length >= 3);
 
 const customerPrompt = buildCustomerChatPrompt({
   menuItems: [
