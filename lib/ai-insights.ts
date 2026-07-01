@@ -265,6 +265,52 @@ function findWeakRevenueDay(summary: AdminPromptSummary) {
   );
 }
 
+function findStrongRevenueDay(summary: AdminPromptSummary) {
+  const revenueDays = summary.dailyRevenue.filter(
+    (day) => day.orderCount > 0 || day.paidOrderCount > 0 || day.revenue > 0,
+  );
+
+  return (
+    revenueDays.sort(
+      (firstDay, secondDay) => secondDay.revenue - firstDay.revenue,
+    )[0] ?? null
+  );
+}
+
+function findWeakShift(summary: AdminPromptSummary) {
+  const activeShifts = summary.shiftRevenue.shifts.filter(
+    (shift) => shift.invoiceCount > 0 || shift.revenue > 0,
+  );
+
+  return (
+    activeShifts.sort(
+      (firstShift, secondShift) => firstShift.revenue - secondShift.revenue,
+    )[0] ?? null
+  );
+}
+
+function getPeriodStats(summary: AdminPromptSummary) {
+  const activeDays = summary.dailyRevenue.filter(
+    (day) => day.orderCount > 0 || day.paidOrderCount > 0 || day.revenue > 0,
+  );
+  const revenue = activeDays.reduce((total, day) => total + day.revenue, 0);
+  const paidOrderCount = activeDays.reduce(
+    (total, day) => total + day.paidOrderCount,
+    0,
+  );
+  const dayCount = summary.dailyRevenue.length || activeDays.length || 1;
+
+  return {
+    averageRevenue: Math.round(
+      revenue / Math.max(1, activeDays.length || dayCount),
+    ),
+    dayCount,
+    label: `${dayCount} ngày`,
+    paidOrderCount,
+    revenue,
+  };
+}
+
 function findStatusCount(summary: AdminPromptSummary, status: string) {
   return (
     summary.orderStatusStats.find((item) => item.status === status)?.count ?? 0
@@ -285,7 +331,10 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
   const topProduct = findTopProduct(summary);
   const bestShift = findBestShift(summary);
   const weakDay = findWeakRevenueDay(summary);
+  const strongDay = findStrongRevenueDay(summary);
+  const weakShift = findWeakShift(summary);
   const topPayment = findTopPayment(summary);
+  const periodStats = getPeriodStats(summary);
   const pendingOrders = findStatusCount(summary, "PENDING");
   const cancelledOrders = findStatusCount(summary, "CANCELLED");
   const wantsProductPush =
@@ -296,6 +345,30 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     normalizedQuestion.includes("rui ro") ||
     normalizedQuestion.includes("can xu ly") ||
     normalizedQuestion.includes("bat thuong");
+  const wantsOrderIssue =
+    normalizedQuestion.includes("don") &&
+    (normalizedQuestion.includes("xu ly") ||
+      normalizedQuestion.includes("ket") ||
+      normalizedQuestion.includes("cho"));
+  const wantsWeakRevenue =
+    normalizedQuestion.includes("doanh thu") &&
+    (normalizedQuestion.includes("yeu") ||
+      normalizedQuestion.includes("thap") ||
+      normalizedQuestion.includes("giam") ||
+      normalizedQuestion.includes("dau"));
+  const wantsStaffing =
+    normalizedQuestion.includes("bo tri") ||
+    normalizedQuestion.includes("them nguoi") ||
+    normalizedQuestion.includes("nhan su") ||
+    normalizedQuestion.includes("ca nao");
+  const wantsShiftEfficiency =
+    normalizedQuestion.includes("ca") &&
+    (normalizedQuestion.includes("hieu qua") ||
+      normalizedQuestion.includes("manh") ||
+      normalizedQuestion.includes("tot nhat"));
+  const wantsTable =
+    normalizedQuestion.includes("ban nao") ||
+    normalizedQuestion.includes("ban dong gop");
   const wantsStaffReward =
     normalizedQuestion.includes("thuong") ||
     normalizedQuestion.includes("khen thuong") ||
@@ -350,6 +423,283 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
           action: "Tránh nêu tên cá nhân nếu chưa có lịch trực và phân công.",
         },
       ],
+    };
+  }
+
+  if (wantsOrderIssue) {
+    return {
+      followUpQuestions: [
+        "Doanh thu đang yếu ở đâu?",
+        "Ca nào nên bố trí thêm người?",
+        "Bàn nào đóng góp nhiều?",
+      ],
+      headline:
+        pendingOrders > 0
+          ? `Cần xử lý ${pendingOrders} đơn chờ thanh toán.`
+          : "Chưa thấy đơn kẹt lớn.",
+      likelyCauses: [
+        pendingOrders > 0
+          ? "Một phần đơn chưa chuyển sang doanh thu vì còn chờ thanh toán."
+          : "Luồng đơn trong ngày không có điểm nghẽn lớn.",
+        cancelledOrders > 0
+          ? "Có đơn hủy cần xem lại lý do."
+          : "Chưa thấy tín hiệu hủy đơn bất thường.",
+      ],
+      narrative: compactText(
+        `${summary.selectedDateLabel}: có ${summary.todayOrders} đơn tạo, ${summary.todayPaidOrders} hóa đơn đã thanh toán, ${pendingOrders} đơn chờ và ${cancelledOrders} đơn hủy.`,
+      ),
+      priorityActions: [
+        {
+          title:
+            pendingOrders > 0 ? "Chốt đơn chờ thanh toán" : "Giữ nhịp xử lý đơn",
+          reason:
+            pendingOrders > 0
+              ? `${pendingOrders} đơn còn ở trạng thái chờ thanh toán.`
+              : "Không có đơn chờ lớn trong ngày đang xem.",
+          action:
+            pendingOrders > 0
+              ? "Rà danh sách đơn chờ, xác nhận thanh toán rồi chuyển sang bếp."
+              : "Tiếp tục giữ màn hình đơn chờ mở ở quầy trong giờ cao điểm.",
+        },
+        {
+          title: cancelledOrders > 0 ? "Xem lại đơn hủy" : "Theo dõi đơn mới",
+          reason:
+            cancelledOrders > 0
+              ? `${cancelledOrders} đơn đã hủy trong ngày đang xem.`
+              : "Đơn mới cần được xác nhận đều để tránh dồn cuối ca.",
+          action:
+            cancelledOrders > 0
+              ? "Kiểm tra lý do hủy từ khách, quầy hay bếp."
+              : "Đặt nhắc quầy kiểm tra đơn mới mỗi vài phút.",
+        },
+      ],
+      riskAlerts:
+        pendingOrders > 0
+          ? [
+              {
+                title: "Đơn chờ thanh toán",
+                evidence: `${pendingOrders} đơn chưa được chốt.`,
+                action: "Xử lý trước khi đánh giá doanh thu ca.",
+              },
+            ]
+          : [],
+    };
+  }
+
+  if (wantsWeakRevenue) {
+    return {
+      followUpQuestions: [
+        "Món nào kéo doanh thu?",
+        "Ca nào nên bố trí thêm người?",
+        "Bàn nào đóng góp nhiều?",
+      ],
+      headline: weakDay
+        ? `${weakDay.label} yếu nhất trong ${periodStats.label}.`
+        : "Chưa đủ dữ liệu để tìm điểm yếu.",
+      likelyCauses: [
+        weakDay
+          ? `Ngày ${weakDay.label} thấp hơn mức trung bình ${formatMoney(
+              periodStats.averageRevenue,
+            )}.`
+          : "Chưa có đủ ngày phát sinh doanh thu.",
+        topProduct
+          ? "Doanh thu vẫn phụ thuộc vào món bán chạy chính."
+          : "Chưa có món chủ lực rõ để kéo ngày yếu.",
+      ],
+      narrative: compactText(
+        weakDay
+          ? `${periodStats.label}: thấp nhất là ${weakDay.label} với ${formatMoney(
+              weakDay.revenue,
+            )}, trung bình ${formatMoney(periodStats.averageRevenue)}/ngày. Mạnh nhất là ${
+              strongDay?.label ?? "chưa rõ"
+            } với ${formatMoney(strongDay?.revenue ?? 0)}.`
+          : `${periodStats.label}: chưa có đủ dữ liệu doanh thu để tìm ngày yếu.`,
+      ),
+      priorityActions: [
+        {
+          title: "Kéo ngày yếu",
+          reason: weakDay
+            ? `${weakDay.label} chỉ đạt ${formatMoney(weakDay.revenue)}.`
+            : "Chưa có ngày yếu rõ ràng.",
+          action:
+            weakDay && strongDay
+              ? `So sánh món bán, ca bán của ${weakDay.label} với ${strongDay.label}.`
+              : "Theo dõi thêm doanh thu từng ngày trước khi kết luận.",
+        },
+        {
+          title: topProduct ? `Đẩy ${topProduct.productName}` : "Chọn món chủ lực",
+          reason: topProduct
+            ? `${topProduct.productName} đang tạo ${formatMoney(topProduct.revenue)}.`
+            : "Chưa thấy top món rõ trong ngày đang xem.",
+          action: topProduct
+            ? "Đưa món này vào gợi ý trong khung giờ có doanh thu thấp."
+            : "Chọn một món dễ mua để thử kéo doanh thu.",
+        },
+      ],
+      riskAlerts:
+        weakDay && weakDay.revenue < periodStats.averageRevenue
+          ? [
+              {
+                title: "Ngày doanh thu thấp",
+                evidence: `${weakDay.label} thấp hơn trung bình kỳ.`,
+                action: "Theo dõi lại lịch trực, thời tiết và món gợi ý ngày đó.",
+              },
+            ]
+          : [],
+    };
+  }
+
+  if (wantsShiftEfficiency) {
+    return {
+      followUpQuestions: [
+        "Ca nào nên bố trí thêm người?",
+        "Doanh thu đang yếu ở đâu?",
+        "Bàn nào đóng góp nhiều?",
+      ],
+      headline: bestShift
+        ? `Ca ${bestShift.label} hiệu quả nhất.`
+        : "Chưa đủ dữ liệu để xếp ca.",
+      likelyCauses: [
+        bestShift
+          ? `Ca ${bestShift.label} đang dẫn doanh thu tháng ${summary.shiftRevenue.monthLabel}.`
+          : "Chưa có ca nào phát sinh đủ hóa đơn.",
+        weakShift && bestShift && weakShift.key !== bestShift.key
+          ? `Ca ${weakShift.label} còn thấp hơn rõ.`
+          : "Các ca chưa có chênh lệch đủ lớn.",
+      ],
+      narrative: compactText(
+        bestShift
+          ? `Tháng ${summary.shiftRevenue.monthLabel}: ca ${bestShift.label} tạo ${formatMoney(
+              bestShift.revenue,
+            )} từ ${bestShift.invoiceCount} hóa đơn. Tổng tháng đang ghi nhận ${formatMoney(
+              summary.shiftRevenue.totalRevenue,
+            )}.`
+          : `Tháng ${summary.shiftRevenue.monthLabel}: chưa đủ hóa đơn theo ca để kết luận ca hiệu quả nhất.`,
+      ),
+      priorityActions: [
+        {
+          title: bestShift ? `Nhân rộng ca ${bestShift.label}` : "Theo dõi thêm ca",
+          reason: bestShift
+            ? `${bestShift.invoiceCount} hóa đơn, ${formatMoney(bestShift.revenue)} doanh thu.`
+            : "Dữ liệu ca còn mỏng.",
+          action: bestShift
+            ? "Xem món bán và cách phục vụ ở ca này để áp dụng cho ca yếu."
+            : "Chờ thêm dữ liệu trước khi đánh giá hiệu quả ca.",
+        },
+        {
+          title: weakShift ? `Kéo ca ${weakShift.label}` : "So sánh ca yếu",
+          reason: weakShift
+            ? `Ca này mới đạt ${formatMoney(weakShift.revenue)}.`
+            : "Cần điểm so sánh để tối ưu lịch.",
+          action: "Dùng món chủ lực và nhắc quầy ở ca có doanh thu thấp.",
+        },
+      ],
+      riskAlerts: [],
+    };
+  }
+
+  if (wantsStaffing) {
+    return {
+      followUpQuestions: [
+        "Doanh thu đang yếu ở đâu?",
+        "Có đơn nào cần xử lý?",
+        "Ca nào hiệu quả nhất?",
+      ],
+      headline: bestShift
+        ? `Ưu tiên thêm người ca ${bestShift.label}.`
+        : "Chưa đủ dữ liệu ca để thêm người.",
+      likelyCauses: [
+        bestShift
+          ? `Ca ${bestShift.label} có tải cao nhất tháng ${summary.shiftRevenue.monthLabel}.`
+          : "Chưa có ca nào phát sinh đủ hóa đơn.",
+        pendingOrders > 0
+          ? "Đơn chờ thanh toán có thể làm quầy bị nghẽn."
+          : "Chưa thấy nghẽn lớn ở trạng thái đơn.",
+      ],
+      narrative: compactText(
+        bestShift
+          ? `Tháng ${summary.shiftRevenue.monthLabel}: ca ${bestShift.label} dẫn với ${bestShift.invoiceCount} hóa đơn, ${formatMoney(
+              bestShift.revenue,
+            )}. Ca thấp nhất đang hoạt động là ${weakShift?.label ?? "chưa rõ"}.`
+          : `Tháng ${summary.shiftRevenue.monthLabel}: chưa có đủ hóa đơn theo ca để đề xuất tăng nhân sự.`,
+      ),
+      priorityActions: [
+        {
+          title: bestShift
+            ? `Bố trí thêm người ca ${bestShift.label}`
+            : "Chưa tăng nhân sự vội",
+          reason: bestShift
+            ? `${bestShift.invoiceCount} hóa đơn, ${formatMoney(bestShift.revenue)} doanh thu.`
+            : "Dữ liệu ca còn mỏng.",
+          action: bestShift
+            ? "Thêm 1 người hỗ trợ quầy/bếp vào ca này trong ngày đông khách."
+            : "Theo dõi thêm vài ngày trước khi đổi lịch.",
+        },
+        {
+          title: "Không dàn đều nhân sự",
+          reason: weakShift
+            ? `Ca ${weakShift.label} thấp hơn với ${formatMoney(weakShift.revenue)}.`
+            : "Không phải ca nào cũng cần thêm người.",
+          action: "Dồn người theo ca có hóa đơn và doanh thu cao nhất.",
+        },
+      ],
+      riskAlerts:
+        pendingOrders > 0
+          ? [
+              {
+                title: "Quầy có thể nghẽn",
+                evidence: `${pendingOrders} đơn đang chờ thanh toán.`,
+                action: "Ưu tiên hỗ trợ thu ngân trước khi thêm người ở bếp.",
+              },
+            ]
+          : [],
+    };
+  }
+
+  if (wantsTable) {
+    const topTable = summary.topTables[0] ?? null;
+
+    return {
+      followUpQuestions: [
+        "Doanh thu đang yếu ở đâu?",
+        "Nên đẩy món nào hôm nay?",
+        "Ca nào nên bố trí thêm người?",
+      ],
+      headline: topTable
+        ? `${topTable.tableName} đóng góp nhiều nhất.`
+        : "Chưa có bàn nổi bật.",
+      likelyCauses: [
+        topTable
+          ? "Một số bàn đang tạo doanh thu cao hơn phần còn lại."
+          : "Ngày đang xem chưa có bàn phát sinh hóa đơn.",
+        "Cần xem thêm ca bán để biết thời điểm bàn hoạt động mạnh.",
+      ],
+      narrative: compactText(
+        topTable
+          ? `${summary.selectedDateLabel}: ${topTable.tableName} tạo ${formatMoney(
+              topTable.revenue,
+            )} từ ${topTable.invoiceCount} hóa đơn. Tổng ngày là ${formatMoney(
+              summary.todayRevenue,
+            )}.`
+          : `${summary.selectedDateLabel}: chưa có bàn nào đủ nổi bật để so sánh.`,
+      ),
+      priorityActions: [
+        {
+          title: topTable ? `Chăm ${topTable.tableName}` : "Theo dõi bàn phát sinh",
+          reason: topTable
+            ? `${topTable.invoiceCount} hóa đơn, ${formatMoney(topTable.revenue)} doanh thu.`
+            : "Chưa có dữ liệu bàn.",
+          action: topTable
+            ? "Ưu tiên tốc độ phục vụ và gợi ý món kèm cho bàn có đóng góp cao."
+            : "Đợi thêm hóa đơn trước khi kết luận bàn trọng điểm.",
+        },
+        {
+          title: "So sánh với ca bán",
+          reason: "Bàn mạnh thường gắn với khung giờ đông khách.",
+          action: "Đối chiếu bàn mạnh với ca doanh thu cao để bố trí phục vụ.",
+        },
+      ],
+      riskAlerts: [],
     };
   }
 
@@ -451,7 +801,9 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
     narrative: compactText(
       `${summary.selectedDateLabel}: doanh thu ${formatMoney(
         summary.todayRevenue,
-      )} từ ${summary.todayPaidOrders} hóa đơn; ${productSignal}. ${shiftSignal}; ${paymentSignal}.`,
+      )} từ ${summary.todayPaidOrders} hóa đơn; kỳ ${periodStats.label} đạt ${formatMoney(
+        periodStats.revenue,
+      )}, TB ${formatMoney(periodStats.averageRevenue)}/ngày; ${productSignal}. ${shiftSignal}; ${paymentSignal}.`,
     ),
     priorityActions: priorityActions.slice(0, 2),
     riskAlerts: riskAlerts.slice(0, 1),
@@ -459,10 +811,14 @@ export function buildFastAdminInsight(summary: AdminPromptSummary): AdminInsight
 }
 
 export function buildAdminInsightPrompt(summary: AdminPromptSummary) {
+  const revenueDaysForPrompt = summary.dailyRevenue.slice(-30);
+  const revenuePeriodLabel =
+    revenueDaysForPrompt.length > 0
+      ? `${revenueDaysForPrompt.length} ngày`
+      : "theo ngày";
   const dailyLines =
-    summary.dailyRevenue.length > 0
-      ? summary.dailyRevenue
-          .slice(-7)
+    revenueDaysForPrompt.length > 0
+      ? revenueDaysForPrompt
           .map(
             (day) =>
               `- ${day.label}: ${formatMoney(day.revenue)}, ${day.paidOrderCount} hóa đơn đã thanh toán, ${day.orderCount} đơn tạo`,
@@ -542,7 +898,7 @@ Dữ liệu ngày đang xem (${summary.selectedDateLabel}):
 - Hóa đơn đã thanh toán: ${summary.todayPaidOrders}
 - Giá trị hóa đơn trung bình: ${formatMoney(summary.averageInvoiceValue)}
 
-Doanh thu 7 ngày gần nhất trong kỳ xem:
+Doanh thu ${revenuePeriodLabel} trong kỳ xem:
 ${dailyLines}
 
 Doanh thu theo ca tháng ${summary.shiftRevenue.monthLabel}:

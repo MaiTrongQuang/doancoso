@@ -204,6 +204,107 @@ assert.match(
 );
 assert.match(rewardAdminInsight.riskAlerts[0]?.title ?? "", /Thiếu dữ liệu nhân sự/);
 
+const periodDailyRevenue = [
+  {
+    date: "2026-06-14",
+    label: "14/06",
+    orderCount: 5,
+    paidOrderCount: 3,
+    revenue: 150_000,
+  },
+  {
+    date: "2026-06-15",
+    label: "15/06",
+    orderCount: 6,
+    paidOrderCount: 4,
+    revenue: 420_000,
+  },
+  {
+    date: "2026-06-16",
+    label: "16/06",
+    orderCount: 7,
+    paidOrderCount: 5,
+    revenue: 510_000,
+  },
+];
+
+const periodAdminSummary = {
+  ...adminSummary,
+  dailyRevenue: periodDailyRevenue,
+  shiftRevenue: {
+    monthLabel: "06/2026",
+    shifts: [
+      {
+        invoiceCount: 2,
+        key: "06-10",
+        label: "06:00-10:00",
+        revenue: 180_000,
+      },
+      {
+        invoiceCount: 12,
+        key: "18-22",
+        label: "18:00-22:00",
+        revenue: 1_450_000,
+      },
+    ],
+    totalInvoiceCount: 14,
+    totalRevenue: 1_630_000,
+  },
+};
+
+const weakRevenueInsight = buildFastAdminInsight({
+  ...periodAdminSummary,
+  question: "Doanh thu đang yếu ở đâu?",
+});
+
+assert.match(weakRevenueInsight.headline, /14\/06/);
+assert.match(weakRevenueInsight.narrative, /3 ngày/);
+assert.match(weakRevenueInsight.narrative, /150\.000/);
+assert.match(weakRevenueInsight.priorityActions[0]?.title ?? "", /Kéo ngày yếu/);
+assert.match(weakRevenueInsight.priorityActions[0]?.action ?? "", /16\/06/);
+
+const staffingInsight = buildFastAdminInsight({
+  ...periodAdminSummary,
+  question: "Ca nào nên bố trí thêm người?",
+});
+
+assert.match(staffingInsight.headline, /18:00-22:00/);
+assert.match(staffingInsight.narrative, /06\/2026/);
+assert.match(staffingInsight.priorityActions[0]?.title ?? "", /Bố trí thêm người/);
+assert.match(staffingInsight.priorityActions[0]?.reason ?? "", /12 hóa đơn/);
+
+const shiftEfficiencyInsight = buildFastAdminInsight({
+  ...periodAdminSummary,
+  question: "Ca nào hiệu quả nhất?",
+});
+
+assert.match(shiftEfficiencyInsight.headline, /18:00-22:00/);
+assert.doesNotMatch(shiftEfficiencyInsight.headline, /thêm người/i);
+assert.match(shiftEfficiencyInsight.priorityActions[0]?.title ?? "", /Nhân rộng/);
+
+const orderIssueInsight = buildFastAdminInsight({
+  ...periodAdminSummary,
+  question: "Có đơn nào cần xử lý?",
+});
+
+assert.match(orderIssueInsight.headline, /2 đơn chờ thanh toán/);
+assert.match(orderIssueInsight.priorityActions[0]?.title ?? "", /Chốt đơn chờ/);
+assert.match(orderIssueInsight.riskAlerts[0]?.title ?? "", /Đơn chờ thanh toán/);
+
+const thirtyDayPrompt = buildAdminInsightPrompt({
+  ...adminSummary,
+  dailyRevenue: Array.from({ length: 30 }, (_, index) => ({
+    date: `2026-06-${String(index + 1).padStart(2, "0")}`,
+    label: `${String(index + 1).padStart(2, "0")}/06`,
+    orderCount: 3,
+    paidOrderCount: 2,
+    revenue: 100_000 + index * 10_000,
+  })),
+});
+
+assert.match(thirtyDayPrompt, /Doanh thu 30 ngày/);
+assert.doesNotMatch(thirtyDayPrompt, /Doanh thu 7 ngày gần nhất trong kỳ xem/);
+
 const customerPrompt = buildCustomerChatPrompt({
   menuItems: [
     {

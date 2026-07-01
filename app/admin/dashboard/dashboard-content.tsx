@@ -323,11 +323,13 @@ export function DashboardContent() {
     },
   ]);
   const [aiQuestion, setAiQuestion] = useState(defaultAdminAiQuestion);
-  const [lastAiRequestKey, setLastAiRequestKey] = useState("");
+  const [answeredAiRequestKeys, setAnsweredAiRequestKeys] = useState<string[]>(
+    [],
+  );
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const aiMessageIdRef = useRef(1);
-  const lastAiRequestKeyRef = useRef("");
+  const answeredAiRequestKeySetRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let isMounted = true;
@@ -507,6 +509,20 @@ export function DashboardContent() {
     });
   }
 
+  function isAnsweredAiRequestKey(requestKey: string) {
+    return Boolean(requestKey) && answeredAiRequestKeys.includes(requestKey);
+  }
+
+  function rememberAiRequestKey(requestKey: string) {
+    answeredAiRequestKeySetRef.current.add(requestKey);
+    setAnsweredAiRequestKeys(Array.from(answeredAiRequestKeySetRef.current));
+  }
+
+  function forgetAiRequestKey(requestKey: string) {
+    answeredAiRequestKeySetRef.current.delete(requestKey);
+    setAnsweredAiRequestKeys(Array.from(answeredAiRequestKeySetRef.current));
+  }
+
   async function handleGenerateAiInsight(
     questionOverride?: string,
     mode: AdminAiMode = "fast",
@@ -522,13 +538,12 @@ export function DashboardContent() {
 
     const requestKey = getAiRequestKey(question, mode);
 
-    if (requestKey === lastAiRequestKeyRef.current) {
+    if (answeredAiRequestKeySetRef.current.has(requestKey)) {
       setAiQuestion(question);
       return;
     }
 
-    lastAiRequestKeyRef.current = requestKey;
-    setLastAiRequestKey(requestKey);
+    rememberAiRequestKey(requestKey);
     setAiError("");
     setAiQuestion(question);
     setIsAiLoading(useDeepAi);
@@ -591,8 +606,7 @@ export function DashboardContent() {
         ),
       );
     } catch (caughtError) {
-      lastAiRequestKeyRef.current = "";
-      setLastAiRequestKey("");
+      forgetAiRequestKey(requestKey);
       setAiMessages((messages) =>
         messages.map((message) =>
           message.id === assistantMessageId
@@ -614,12 +628,9 @@ export function DashboardContent() {
     : "";
   const currentFastRequestKey = data ? getAiRequestKey(aiQuestion, "fast") : "";
   const currentDeepRequestKey = data ? getAiRequestKey(aiQuestion, "deep") : "";
-  const isDefaultFastRepeated =
-    Boolean(defaultFastRequestKey) && defaultFastRequestKey === lastAiRequestKey;
-  const isCurrentFastRepeated =
-    Boolean(currentFastRequestKey) && currentFastRequestKey === lastAiRequestKey;
-  const isCurrentDeepRepeated =
-    Boolean(currentDeepRequestKey) && currentDeepRequestKey === lastAiRequestKey;
+  const isDefaultFastRepeated = isAnsweredAiRequestKey(defaultFastRequestKey);
+  const isCurrentFastRepeated = isAnsweredAiRequestKey(currentFastRequestKey);
+  const isCurrentDeepRepeated = isAnsweredAiRequestKey(currentDeepRequestKey);
 
   return (
     <PageShell maxWidthClassName="max-w-[1440px]">
@@ -675,7 +686,8 @@ export function DashboardContent() {
                 Trợ lý vận hành
               </h2>
               <p className="mt-1 text-sm font-semibold text-[#625b50]">
-                Tóm tắt ngắn từ doanh thu, món bán và ca bán.
+                Dùng ngày đang xem, biểu đồ {periodDays} ngày và ca{" "}
+                {data?.shiftRevenue.monthLabel ?? "trong tháng"}.
               </p>
             </div>
           </div>
@@ -689,14 +701,16 @@ export function DashboardContent() {
             <span className="rounded-full bg-white px-3 py-2 text-[#6d645a] ring-1 ring-[#eadfce]">
               {data?.topProducts[0]?.productName ?? "Chưa có top món"}
             </span>
+            <span className="rounded-full bg-white px-3 py-2 text-[#6d645a] ring-1 ring-[#eadfce]">
+              {periodDays} ngày
+            </span>
           </div>
         </div>
 
         <div aria-label="Câu hỏi nhanh" className="mt-4 flex flex-wrap gap-2">
           {adminAiQuickQuestions.map((question) => {
             const quickRequestKey = data ? getAiRequestKey(question, "fast") : "";
-            const isRepeatedQuestion =
-              Boolean(quickRequestKey) && quickRequestKey === lastAiRequestKey;
+            const isRepeatedQuestion = isAnsweredAiRequestKey(quickRequestKey);
 
             return (
               <button
