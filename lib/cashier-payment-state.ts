@@ -14,7 +14,18 @@ export type CashierOrderListState = {
   updatedAt: string;
 };
 
-export type CashierPaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
+export const cashierPaymentMethods = ["CASH", "QR_PAYMENT"] as const;
+
+export type CashierPaymentMethod = (typeof cashierPaymentMethods)[number];
+
+export function isCashierPaymentMethod(
+  value: unknown,
+): value is CashierPaymentMethod {
+  return (
+    typeof value === "string" &&
+    cashierPaymentMethods.includes(value as CashierPaymentMethod)
+  );
+}
 
 export function removeSettledBillOrders<TOrder extends CashierBillListItem>(
   orders: readonly TOrder[],

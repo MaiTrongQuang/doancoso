@@ -140,7 +140,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 }
 
 function normalizePaymentMethod(value: unknown) {
-  if (value === PaymentMethod.CASH || value === PaymentMethod.BANK_TRANSFER) {
+  if (value === PaymentMethod.CASH) {
     return value;
   }
 

@@ -3,6 +3,7 @@ import {
   applyCashierOrderStatusPatch,
   getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
+  isCashierPaymentMethod,
   removeSettledBillOrders,
 } from "./cashier-payment-state";
 
@@ -140,7 +141,7 @@ assert.equal(
   getCashierPaymentActionLabel({
     hasPendingQrPayment: false,
     isPaying: true,
-    paymentMethod: "BANK_TRANSFER",
+    paymentMethod: "CASH",
   }),
   "Đang xác nhận...",
 );
@@ -168,6 +169,11 @@ assert.equal(
   }),
   "Đang chờ ngân hàng xác nhận",
 );
+
+assert.equal(isCashierPaymentMethod("CASH"), true);
+assert.equal(isCashierPaymentMethod("QR_PAYMENT"), true);
+assert.equal(isCashierPaymentMethod("BANK_TRANSFER"), false);
+assert.equal(isCashierPaymentMethod("cash"), false);
 
 assert.equal(
   hasCashierOrderListChanged(cashierOrders, [

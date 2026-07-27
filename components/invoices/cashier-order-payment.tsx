@@ -10,11 +10,11 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/ui";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   applyCashierOrderStatusPatch,
   getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
+  type CashierPaymentMethod,
   removeSettledBillOrders,
 } from "@/lib/cashier-payment-state";
 import { formatMoney } from "@/lib/format-money";
@@ -22,7 +22,7 @@ import { getInvoicePrintHref } from "@/lib/invoice-links";
 import { getOrderPaymentReferenceLabel } from "@/lib/order-payment-reference";
 import { getPaymentPollingDelay } from "@/lib/payment-polling";
 
-type PaymentMethod = "CASH" | "BANK_TRANSFER" | "QR_PAYMENT";
+type PaymentMethod = CashierPaymentMethod;
 
 type CashierOrder = {
   id: number;
@@ -127,11 +127,6 @@ const paymentOptions: Array<{
     description: "Khách thanh toán trực tiếp tại quầy.",
   },
   {
-    value: "BANK_TRANSFER",
-    label: "Chuyển khoản đã nhận",
-    description: "Dùng khi khách đã chuyển khoản ngoài QR tự động.",
-  },
-  {
     value: "QR_PAYMENT",
     label: "Quét QR tự động",
     description:
@@ -141,7 +136,6 @@ const paymentOptions: Array<{
 
 const paymentLabel: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
 const cashierVisibleStatuses = ["SERVED", "AWAITING_PAYMENT"] as const;
@@ -440,9 +434,6 @@ export function CashierOrderPayment() {
   const [isLoadingOrderDetail, setIsLoadingOrderDetail] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [pendingCancelOrder, setPendingCancelOrder] =
-    useState<CashierOrder | null>(null);
   const [draftNote, setDraftNote] = useState("");
   const [draftItems, setDraftItems] = useState<Record<number, DraftOrderItem>>({});
 
@@ -970,65 +961,6 @@ export function CashierOrderPayment() {
     }
   }
 
-  async function handleCancelPendingOrder() {
-    if (!pendingCancelOrder) {
-      return;
-    }
-
-    const orderToCancel = pendingCancelOrder;
-
-    setMessage("");
-    setError("");
-    setPaymentSuccess(null);
-    setIsCancelling(true);
-
-    try {
-      const response = await fetch(`/api/orders/${orderToCancel.id}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: "CANCELLED",
-        }),
-      });
-      const result = (await response.json()) as OrderStatusResponse;
-
-      if (!response.ok || !result.data) {
-        throw new Error(
-          getErrorMessage(result, "Không thể hủy đơn chưa thanh toán."),
-        );
-      }
-
-      setOrders((currentOrders) =>
-        applyCashierOrderStatusPatch(
-          currentOrders,
-          result.data!,
-          cashierVisibleStatuses,
-        ),
-      );
-
-      if (selectedOrderId === orderToCancel.id) {
-        setSelectedOrderId(null);
-        setDraftItems({});
-        setDraftNote("");
-      }
-
-      setQrPayment(null);
-      setIsLoadingOrderDetail(false);
-      setMessage(result.message ?? `Đã hủy đơn #${orderToCancel.id}.`);
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Không thể hủy đơn chưa thanh toán.",
-      );
-    } finally {
-      setIsCancelling(false);
-      setPendingCancelOrder(null);
-    }
-  }
-
   return (
     <PageShell>
       <PageHero
@@ -1345,14 +1277,6 @@ export function CashierOrderPayment() {
                         paymentMethod,
                       })}
                     </button>
-                    <button
-                      className="pos-button-danger mt-2 w-full disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isPaying || isSavingOrder || isCancelling}
-                      onClick={() => setPendingCancelOrder(selectedOrder)}
-                      type="button"
-                    >
-                      Hủy đơn chưa thanh toán
-                    </button>
                   </div>
                 </div>
 
@@ -1362,19 +1286,6 @@ export function CashierOrderPayment() {
         </Panel>
       </section>
 
-      <ConfirmDialog
-        confirmLabel="Hủy đơn"
-        description="Chỉ dùng khi khách đổi ý hoặc không thanh toán. Đơn sẽ rời khỏi danh sách quầy và không chuyển sang bếp."
-        isConfirming={isCancelling}
-        onCancel={() => setPendingCancelOrder(null)}
-        onConfirm={handleCancelPendingOrder}
-        open={pendingCancelOrder !== null}
-        title={`Hủy đơn #${pendingCancelOrder?.id ?? ""}?`}
-      >
-        {pendingCancelOrder
-          ? `${pendingCancelOrder.table.name} · ${formatMoney(pendingCancelOrder.totalAmount)}`
-          : null}
-      </ConfirmDialog>
     </PageShell>
   );
 }

@@ -8,8 +8,7 @@ import {
 } from "@/lib/server-auth";
 import { completeManualPayment } from "@/lib/payment-workflow";
 import { OrderWorkflowError } from "@/lib/order-workflow";
-
-const paymentMethods = new Set<string>(Object.values(PaymentMethod));
+import { isCashierPaymentMethod } from "@/lib/cashier-payment-state";
 
 function normalizeId(value: unknown) {
   const id = typeof value === "number" ? value : Number.parseInt(String(value), 10);
@@ -22,7 +21,7 @@ function normalizePaymentMethod(value: unknown) {
   }
 
   const paymentMethod = value.trim().toUpperCase();
-  if (!paymentMethods.has(paymentMethod)) {
+  if (!isCashierPaymentMethod(paymentMethod)) {
     return null;
   }
 
@@ -126,10 +125,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      paymentMethod !== PaymentMethod.CASH &&
-      paymentMethod !== PaymentMethod.BANK_TRANSFER
-    ) {
+    if (paymentMethod !== PaymentMethod.CASH) {
       return NextResponse.json(
         {
           message:
