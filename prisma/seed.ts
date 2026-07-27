@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { PrismaClient, ProductStatus, Role, TableStatus } from "@prisma/client";
+import { ensureTableQrConfig } from "../lib/table-qr";
 
 const prisma = new PrismaClient();
 
@@ -351,13 +352,15 @@ async function seedTables() {
     });
 
     if (existingTable) {
-      await prisma.cafeTable.update({
-        where: { id: existingTable.id },
-        data: {
-          name,
-          qrCodeUrl: `/order/table/${existingTable.id}`,
-          status: existingTable.status,
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.cafeTable.update({
+          where: { id: existingTable.id },
+          data: {
+            name,
+            status: existingTable.status,
+          },
+        });
+        await ensureTableQrConfig(tx, existingTable.id);
       });
       continue;
     }
@@ -369,11 +372,8 @@ async function seedTables() {
       },
     });
 
-    await prisma.cafeTable.update({
-      where: { id: createdTable.id },
-      data: {
-        qrCodeUrl: `/order/table/${createdTable.id}`,
-      },
+    await prisma.$transaction(async (tx) => {
+      await ensureTableQrConfig(tx, createdTable.id);
     });
   }
 }

@@ -1,24 +1,28 @@
 import Link from "next/link";
 import { getHomeAccessModel } from "@/lib/home-access";
+import { getPublicCustomerRoute } from "@/lib/public-customer-route";
 import { getCurrentSession } from "@/lib/server-auth";
 
 export default async function Home() {
   const session = await getCurrentSession();
   const accessModel = getHomeAccessModel(session?.role ?? null);
-  const customerRoute = accessModel.customerRoutes[0];
+  const customerRoute = await getPublicCustomerRoute();
   const primaryInternalRoute = accessModel.internalGroups[0]?.routes[0];
+  const customerCard = customerRoute
+    ? {
+        accent: "#a45700",
+        cta: customerRoute.label,
+        description:
+          "Mở menu QR, chọn món, ghi chú và gửi đơn ngay tại bàn.",
+        eyebrow: "Customer",
+        href: customerRoute.href,
+        image: "/images/menu/all.svg",
+        title: customerRoute.label,
+      }
+    : null;
   const workAreaCards = session
     ? [
-        {
-          accent: "#a45700",
-          cta: customerRoute.label,
-          description:
-            "Mở menu QR, chọn món, ghi chú và gửi đơn ngay tại bàn.",
-          eyebrow: "Customer",
-          href: customerRoute.href,
-          image: "/images/menu/all.svg",
-          title: "Khách gọi món",
-        },
+        ...(customerCard ? [customerCard] : []),
         ...accessModel.internalGroups.map((group) => ({
           accent: group.accent,
           cta: group.cta,
@@ -30,16 +34,7 @@ export default async function Home() {
         })),
       ]
     : [
-        {
-          accent: "#a45700",
-          cta: customerRoute.label,
-          description:
-            "Mở menu QR, chọn món, ghi chú và gửi đơn ngay tại bàn.",
-          eyebrow: "Customer",
-          href: customerRoute.href,
-          image: "/images/menu/all.svg",
-          title: "Khách gọi món",
-        },
+        ...(customerCard ? [customerCard] : []),
         {
           accent: "#2f5d50",
           cta: "Đăng nhập hệ thống",
@@ -63,12 +58,14 @@ export default async function Home() {
             >
               {session ? "Vào khu vực làm việc" : "Đăng nhập hệ thống"}
             </Link>
-            <Link
-              className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] shadow-sm transition hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#885200]"
-              href={customerRoute.href}
-            >
-              {customerRoute.label}
-            </Link>
+            {customerRoute ? (
+              <Link
+                className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-[#ff9f0a] px-4 text-sm font-extrabold text-[#2b1700] shadow-sm transition hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[#885200]"
+                href={customerRoute.href}
+              >
+                {customerRoute.label}
+              </Link>
+            ) : null}
           </nav>
 
           <div>
