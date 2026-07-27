@@ -21,7 +21,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   staffModel.internalGroups[0]?.routes.map((route) => route.href),
-  ["/staff/orders"],
+  ["/staff/orders", "/staff/tables"],
 );
 assert.deepEqual(
   staffModel.customerRoutes.map((route) => route.href),

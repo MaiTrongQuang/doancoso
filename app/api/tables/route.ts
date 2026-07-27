@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasRole } from "@/lib/server-auth";
+import { canManageTables, canViewTables } from "@/lib/auth";
+import { getCurrentActor } from "@/lib/server-auth";
 import { ensureTableQrConfig } from "@/lib/table-qr";
 
 function normalizeName(value: unknown) {
@@ -48,6 +49,15 @@ function serializeTable(table: {
 
 export async function GET() {
   try {
+    const actor = await getCurrentActor();
+
+    if (!actor || !canViewTables(actor.role)) {
+      return NextResponse.json(
+        { message: "Bạn không có quyền xem trạng thái bàn." },
+        { status: 403 },
+      );
+    }
+
     const tables = await prisma.cafeTable.findMany({
       orderBy: {
         id: "asc",
@@ -96,9 +106,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const isAdmin = await hasRole(["ADMIN"]);
+    const actor = await getCurrentActor();
 
-    if (!isAdmin) {
+    if (!actor || !canManageTables(actor.role)) {
       return NextResponse.json(
         { message: "Bạn không có quyền thêm bàn." },
         { status: 403 },

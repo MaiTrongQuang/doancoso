@@ -8,10 +8,14 @@ export const adminRoutes = [
   { href: "/admin/users", label: "Nhân viên" },
 ];
 
-export const staffRoutes = [{ href: "/staff/orders", label: "Đơn nhân viên" }];
+export const staffRoutes = [
+  { href: "/staff/orders", label: "Đơn nhân viên" },
+  { href: "/staff/tables", label: "Trạng thái bàn" },
+];
 
 export const cashierRoutes = [
   { href: "/cashier/orders", label: "Quầy xác nhận" },
+  { href: "/cashier/tables", label: "Trạng thái bàn" },
 ];
 
 export const customerRoutes = [

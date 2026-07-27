@@ -1,4 +1,5 @@
 import { RoleHeader } from "@/components/layout";
+import { cashierRoutes } from "@/lib/app-routes";
 import { getCurrentSession } from "@/lib/server-auth";
 
 export default async function CashierLayout({
@@ -14,6 +15,7 @@ export default async function CashierLayout({
         badge="Cashier"
         title="Quầy vận hành"
         description="Xác nhận thanh toán, tạo hóa đơn và chuyển đơn sang pha chế."
+        navigation={cashierRoutes}
         userName={session?.name}
       />
       {children}

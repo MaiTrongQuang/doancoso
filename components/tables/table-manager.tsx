@@ -159,7 +159,11 @@ function OrderQrCode({ value }: { value: string }) {
   );
 }
 
-export function TableManager() {
+type TableManagerProps = {
+  readOnly?: boolean;
+};
+
+export function TableManager({ readOnly = false }: TableManagerProps) {
   const [tables, setTables] = useState<CafeTable[]>([]);
   const [form, setForm] = useState<TableForm>(emptyForm);
   const [editingTable, setEditingTable] = useState<CafeTable | null>(null);
@@ -400,16 +404,25 @@ export function TableManager() {
   return (
     <PageShell>
       <PageHero
-        eyebrow="Admin"
-        title="Quản lý bàn"
-        description="Quản lý trạng thái bàn, link gọi món và mã QR Order theo từng bàn."
+        eyebrow={readOnly ? "Vận hành" : "Admin"}
+        title={readOnly ? "Theo dõi bàn" : "Quản lý bàn"}
+        description={
+          readOnly
+            ? "Xem nhanh trạng thái bàn, phiên phục vụ và số đơn đang xử lý."
+            : "Quản lý trạng thái bàn, link gọi món và mã QR Order theo từng bàn."
+        }
       />
 
       {message ? <Alert tone="success">{message}</Alert> : null}
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
-      <section className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section
+        className={
+          readOnly ? "grid gap-6" : "grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]"
+        }
+      >
+        {!readOnly ? (
           <form
             className="pos-panel h-fit p-5"
             onSubmit={handleSubmit}
@@ -488,11 +501,26 @@ export function TableManager() {
               ) : null}
             </div>
           </form>
+        ) : null}
 
           <Panel className="min-w-0 overflow-hidden">
             <PanelHeader
-              title="Danh sách bàn"
-              aside={<CountPill>{tables.length} bàn</CountPill>}
+              title={readOnly ? "Trạng thái bàn" : "Danh sách bàn"}
+              aside={
+                <div className="flex items-center gap-2">
+                  {readOnly ? (
+                    <button
+                      className="rounded-full border border-[#d8cdbc] bg-white px-3 py-2 text-xs font-bold text-[#2f5d50] transition hover:bg-[#eff7f2] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isLoading}
+                      onClick={() => void loadTables()}
+                      type="button"
+                    >
+                      {isLoading ? "Đang tải..." : "Làm mới"}
+                    </button>
+                  ) : null}
+                  <CountPill>{tables.length} bàn</CountPill>
+                </div>
+              }
             />
 
             <div className="grid gap-4 p-4 2xl:grid-cols-2">
@@ -543,26 +571,39 @@ export function TableManager() {
 
                     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_144px]">
                       <div className="min-w-0 space-y-4">
-                        <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
-                          Trạng thái
-                          <select
-                            className="w-full rounded-md border border-[#d6d1c7] px-3 py-2 text-sm outline-none focus:border-[#2f5d50] disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={updatingStatusId === table.id}
-                            onChange={(event) =>
-                              handleStatusChange(
-                                table,
-                                event.target.value as TableStatus,
-                              )
-                            }
-                            value={table.status}
-                          >
-                            {statusOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        {readOnly ? (
+                          <div className="flex items-center justify-between gap-3 rounded-md bg-[#f7f7f2] p-3 text-sm font-medium text-[#3b352d]">
+                            <span>Trạng thái hiện tại</span>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClassName(
+                                table.status,
+                              )}`}
+                            >
+                              {statusLabel[table.status]}
+                            </span>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
+                            Trạng thái
+                            <select
+                              className="w-full rounded-md border border-[#d6d1c7] px-3 py-2 text-sm outline-none focus:border-[#2f5d50] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={updatingStatusId === table.id}
+                              onChange={(event) =>
+                                handleStatusChange(
+                                  table,
+                                  event.target.value as TableStatus,
+                                )
+                              }
+                              value={table.status}
+                            >
+                              {statusOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
 
                         <div className="rounded-md bg-[#f7f7f2] p-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-[#6b6254]">
@@ -594,7 +635,8 @@ export function TableManager() {
                       <span className="text-sm font-medium text-[#625b50]">
                         {table.orderCount} đơn hàng
                       </span>
-                      <div className="flex flex-wrap gap-2">
+                      {!readOnly ? (
+                        <div className="flex flex-wrap gap-2">
                         <button
                           className="rounded-md border border-[#2f5d50] px-3 py-2 text-sm font-semibold text-[#2f5d50] transition hover:bg-[#eff7f2]"
                           onClick={() => startEdit(table)}
@@ -615,7 +657,12 @@ export function TableManager() {
                         >
                           {deletingTableId === table.id ? "Đang xóa..." : "Xóa"}
                         </button>
-                      </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold uppercase tracking-wide text-[#8a806f]">
+                          Chỉ xem
+                        </span>
+                      )}
                     </div>
                   </article>
                 );

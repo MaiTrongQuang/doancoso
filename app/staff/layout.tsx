@@ -1,5 +1,6 @@
 import { RoleHeader } from "@/components/layout";
 import { getCurrentSession } from "@/lib/server-auth";
+import { staffRoutes } from "@/lib/app-routes";
 
 export default async function StaffLayout({
   children,
@@ -14,6 +15,7 @@ export default async function StaffLayout({
         badge="Staff"
         title="Khu vực nhân viên"
         description="Theo dõi các đơn bếp đã nhận, chuẩn bị món và chuyển sang đã phục vụ."
+        navigation={staffRoutes}
         userName={session?.name}
       />
       {children}

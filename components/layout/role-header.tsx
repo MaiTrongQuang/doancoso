@@ -1,10 +1,17 @@
 import { LogoutButton } from "./logout-button";
+import Link from "next/link";
+
+type RoleNavigationItem = {
+  href: string;
+  label: string;
+};
 
 type RoleHeaderProps = {
   badge: string;
   title: string;
   description: string;
   userName?: string;
+  navigation?: RoleNavigationItem[];
 };
 
 export function RoleHeader({
@@ -12,6 +19,7 @@ export function RoleHeader({
   title,
   description,
   userName,
+  navigation = [],
 }: RoleHeaderProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-[#d8cdbc] bg-[#fffdf9]/92 shadow-[0_10px_30px_rgba(31,36,40,0.05)] backdrop-blur">
@@ -34,6 +42,15 @@ export function RoleHeader({
         </div>
 
         <div className="flex flex-wrap gap-2 sm:items-center">
+          {navigation.map((item) => (
+            <Link
+              className="inline-flex min-h-10 items-center rounded-full border border-[#d8cdbc] bg-white px-3 text-sm font-bold text-[#2f5d50] transition hover:bg-[#eff7f2]"
+              href={item.href}
+              key={item.href}
+            >
+              {item.label}
+            </Link>
+          ))}
           {userName ? (
             <span className="inline-flex min-h-10 items-center rounded-full border border-[#eadfce] bg-white px-3 text-sm font-bold text-[#3b352d]">
               {userName}

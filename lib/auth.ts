@@ -25,6 +25,14 @@ export function isUserRole(value: unknown): value is UserRole {
   return typeof value === "string" && userRoles.includes(value as UserRole);
 }
 
+export function canViewTables(role: UserRole) {
+  return userRoles.includes(role);
+}
+
+export function canManageTables(role: UserRole) {
+  return role === "ADMIN";
+}
+
 export const protectedRoutePrefixes = ["/admin", "/staff", "/cashier", "/invoices"];
 
 export function isProtectedPath(pathname: string) {

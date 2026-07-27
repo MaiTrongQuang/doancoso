@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasRole } from "@/lib/server-auth";
+import { canManageTables } from "@/lib/auth";
+import { getCurrentActor } from "@/lib/server-auth";
 import { activeTableOrderStatuses } from "@/lib/table-session-flow";
 import {
   ensureTableQrConfig,
@@ -73,9 +74,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const isAdmin = await hasRole(["ADMIN"]);
+    const actor = await getCurrentActor();
 
-    if (!isAdmin) {
+    if (!actor || !canManageTables(actor.role)) {
       return NextResponse.json(
         { message: "Bạn không có quyền cập nhật bàn." },
         { status: 403 },
@@ -240,9 +241,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const isAdmin = await hasRole(["ADMIN"]);
+    const actor = await getCurrentActor();
 
-    if (!isAdmin) {
+    if (!actor || !canManageTables(actor.role)) {
       return NextResponse.json(
         { message: "Bạn không có quyền xóa bàn." },
         { status: 403 },
