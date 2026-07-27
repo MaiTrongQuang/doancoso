@@ -2,7 +2,10 @@ export type BillOrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
+  | "READY"
   | "SERVED"
+  | "AWAITING_PAYMENT"
+  | "COMPLETED"
   | "PAID"
   | "CANCELLED";
 
@@ -12,7 +15,9 @@ export const activeTableOrderStatuses = [
   "PENDING",
   "CONFIRMED",
   "PREPARING",
+  "READY",
   "SERVED",
+  "AWAITING_PAYMENT",
 ] as const satisfies readonly BillOrderStatus[];
 
 const activeTableOrderStatusSet = new Set<BillOrderStatus>(
@@ -24,7 +29,9 @@ export function canPayDiningSession(statuses: readonly BillOrderStatus[]) {
 
   return (
     billableStatuses.length > 0 &&
-    billableStatuses.every((status) => status === "SERVED")
+    billableStatuses.every(
+      (status) => status === "SERVED" || status === "AWAITING_PAYMENT",
+    )
   );
 }
 

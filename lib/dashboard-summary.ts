@@ -125,11 +125,14 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 };
 
 const orderStatusLabels: Record<OrderStatus, string> = {
-  PENDING: "Chờ thanh toán",
-  CONFIRMED: "Đã thu tiền",
+  PENDING: "Khởi tạo",
+  CONFIRMED: "Đã gửi bếp",
   PREPARING: "Đang chuẩn bị",
+  READY: "Sẵn sàng phục vụ",
   SERVED: "Đã phục vụ",
-  PAID: "Đã thanh toán",
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  COMPLETED: "Hoàn tất",
+  PAID: "Đã thanh toán (cũ)",
   CANCELLED: "Đã hủy",
 };
 
@@ -478,7 +481,7 @@ export async function getDashboardSummary({
             INNER JOIN invoices i ON i.order_id = o.id
             INNER JOIN products p ON p.id = oi.product_id
             INNER JOIN categories c ON c.id = p.category_id
-            WHERE o.status::text = ${OrderStatus.PAID}
+            WHERE o.status::text IN (${OrderStatus.PAID}, ${OrderStatus.COMPLETED})
               AND i.paid_at >= ${start}::timestamp
               AND i.paid_at < ${end}::timestamp
             GROUP BY p.id, p.name, c.name

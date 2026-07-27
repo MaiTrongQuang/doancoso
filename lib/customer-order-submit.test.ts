@@ -68,7 +68,7 @@ assert.equal(
     id: 76,
     sessionId: 44,
   }),
-  "Mã thanh toán #44",
+  "Mã đơn #76",
 );
 
 assert.equal(
@@ -76,5 +76,5 @@ assert.equal(
     id: 76,
     sessionId: null,
   }),
-  "Mã thanh toán #76",
+  "Mã đơn #76",
 );

@@ -144,7 +144,7 @@ const paymentLabel: Record<PaymentMethod, string> = {
   BANK_TRANSFER: "Chuyển khoản",
   QR_PAYMENT: "Thanh toán QR",
 };
-const cashierVisibleStatuses = ["PENDING"] as const;
+const cashierVisibleStatuses = ["SERVED", "AWAITING_PAYMENT"] as const;
 const cashierOrderPollIntervalMs = 5_000;
 
 function getErrorMessage(value: unknown, fallback: string) {
@@ -213,7 +213,7 @@ function buildDraftItems(order: CashierOrder) {
 
 async function fetchPendingOrders() {
   const response = await fetch(
-    "/api/orders?statuses=PENDING",
+    "/api/orders?statuses=SERVED,AWAITING_PAYMENT",
     {
       cache: "no-store",
     },
@@ -222,7 +222,7 @@ async function fetchPendingOrders() {
 
   if (!response.ok) {
     throw new Error(
-      getErrorMessage(result, "Không thể tải đơn chờ thanh toán."),
+      getErrorMessage(result, "Không thể tải đơn đã phục vụ."),
     );
   }
 
@@ -234,7 +234,7 @@ async function fetchPendingOrders() {
 
 async function fetchPendingOrderSummaries() {
   const response = await fetch(
-    "/api/orders?statuses=PENDING&view=summary",
+    "/api/orders?statuses=SERVED,AWAITING_PAYMENT&view=summary",
     {
       cache: "no-store",
     },
@@ -243,7 +243,7 @@ async function fetchPendingOrderSummaries() {
 
   if (!response.ok) {
     throw new Error(
-      getErrorMessage(result, "Không thể tải đơn chờ thanh toán."),
+      getErrorMessage(result, "Không thể tải đơn đã phục vụ."),
     );
   }
 
@@ -262,7 +262,7 @@ async function fetchBillDetail(orderId: number) {
 
   if (!response.ok || !result.data) {
     throw new Error(
-      getErrorMessage(result, "Không thể tải chi tiết đơn chờ thanh toán."),
+      getErrorMessage(result, "Không thể tải chi tiết đơn đã phục vụ."),
     );
   }
 
@@ -500,7 +500,7 @@ export function CashierOrderPayment() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Không thể tải đơn chờ thanh toán.",
+          : "Không thể tải đơn đã phục vụ.",
       );
     } finally {
       setIsLoading(false);
@@ -523,7 +523,7 @@ export function CashierOrderPayment() {
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : "Không thể tải đơn chờ thanh toán.",
+              : "Không thể tải đơn đã phục vụ.",
           );
         }
       } finally {
@@ -562,7 +562,7 @@ export function CashierOrderPayment() {
             setOrders(nextOrders);
 
             if (hasNewOrder) {
-              setMessage("Có đơn mới chờ thanh toán.");
+              setMessage("Có đơn mới đã phục vụ, đang chờ thu tiền.");
             }
           }
         }
@@ -571,7 +571,7 @@ export function CashierOrderPayment() {
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : "Không thể tải đơn chờ thanh toán.",
+              : "Không thể tải đơn đã phục vụ.",
           );
         }
       } finally {
@@ -631,7 +631,7 @@ export function CashierOrderPayment() {
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : "Không thể tải chi tiết đơn chờ thanh toán.",
+              : "Không thể tải chi tiết đơn đã phục vụ.",
           );
         }
       })
@@ -707,7 +707,7 @@ export function CashierOrderPayment() {
 
         if (
           result.data.paymentStatus === "PAID" ||
-          result.data.orderStatus === "PAID"
+          result.data.orderStatus === "COMPLETED"
         ) {
           isSettled = true;
           const settledBill = {
@@ -790,13 +790,12 @@ export function CashierOrderPayment() {
     setIsPaying(true);
 
     try {
-      const response = await fetch(`/api/orders/${selectedOrder.id}/status`, {
-        method: "PUT",
+      const response = await fetch(`/api/payments/order/${selectedOrder.id}`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          status: "CONFIRMED",
           paymentMethod,
         }),
       });
@@ -948,7 +947,7 @@ export function CashierOrderPayment() {
 
       if (!response.ok || !result.data) {
         throw new Error(
-          getErrorMessage(result, "Không thể cập nhật đơn chờ thanh toán."),
+          getErrorMessage(result, "Không thể cập nhật đơn đã phục vụ."),
         );
       }
 
@@ -959,12 +958,12 @@ export function CashierOrderPayment() {
       );
       setDraftItems(buildDraftItems(result.data));
       setDraftNote(result.data.note ?? "");
-      setMessage(result.message ?? "Đã cập nhật đơn chờ thanh toán.");
+      setMessage(result.message ?? "Đã cập nhật đơn đã phục vụ.");
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Không thể cập nhật đơn chờ thanh toán.",
+          : "Không thể cập nhật đơn đã phục vụ.",
       );
     } finally {
       setIsSavingOrder(false);
@@ -1035,7 +1034,7 @@ export function CashierOrderPayment() {
       <PageHero
         eyebrow="Cashier"
         title="Quầy xác nhận đơn"
-        description="Nhận tiền ngay sau khi khách gọi món, tạo hóa đơn và chuyển đơn đã thanh toán sang bếp."
+        description="Nhận đơn đã phục vụ, xác nhận thanh toán, tạo hóa đơn và kết thúc phiên bàn."
         actions={
           <button
             className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
@@ -1057,8 +1056,8 @@ export function CashierOrderPayment() {
       <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Panel className="h-fit min-w-0 overflow-hidden">
           <PanelHeader
-            title="Đơn chờ thanh toán"
-            description="Khách gọi món xong sẽ mang mã đơn ra quầy để xác nhận."
+            title="Đơn chờ thu tiền"
+            description="Đơn đã phục vụ sẽ xuất hiện tại đây để thu ngân chốt thanh toán."
             aside={<CountPill>{orders.length} đơn</CountPill>}
           />
 
@@ -1069,7 +1068,7 @@ export function CashierOrderPayment() {
 
               {!isLoading && orders.length === 0 ? (
                 <p className="text-sm text-[#625b50]">
-                  Chưa có đơn nào chờ quầy xác nhận.
+                  Chưa có đơn nào đã phục vụ chờ thu tiền.
                 </p>
               ) : null}
 

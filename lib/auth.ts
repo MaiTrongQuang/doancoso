@@ -9,12 +9,16 @@ export const roleHomePath: Record<UserRole, string> = {
   ADMIN: "/admin/dashboard",
   STAFF: "/staff/orders",
   CASHIER: "/cashier/orders",
+  BARISTA: "/staff/orders",
+  SERVER: "/staff/orders",
 };
 
 const userRoles = [
   "ADMIN",
   "STAFF",
   "CASHIER",
+  "BARISTA",
+  "SERVER",
 ] as const satisfies readonly UserRole[];
 
 export function isUserRole(value: unknown): value is UserRole {
@@ -37,7 +41,7 @@ export function canAccessPath(role: UserRole, pathname: string) {
     );
   }
 
-  if (role === "STAFF") {
+  if (role === "STAFF" || role === "BARISTA" || role === "SERVER") {
     return pathname.startsWith("/staff");
   }
 

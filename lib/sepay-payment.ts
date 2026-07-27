@@ -13,7 +13,10 @@ export type SepayPaymentOrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
+  | "READY"
   | "SERVED"
+  | "AWAITING_PAYMENT"
+  | "COMPLETED"
   | "PAID"
   | "CANCELLED";
 
@@ -40,18 +43,14 @@ export function canConfirmSepayPayment(status: SepayPaymentLifecycleStatus) {
 export function canCreateSepayPaymentForOrderStatus(
   status: SepayPaymentOrderStatus,
 ) {
-  return status === "PENDING" || status === "SERVED";
+  return status === "SERVED" || status === "AWAITING_PAYMENT";
 }
 
 export function getOrderStatusAfterSepayPayment(
   status: SepayPaymentOrderStatus,
 ) {
-  if (status === "PENDING") {
-    return "CONFIRMED";
-  }
-
-  if (status === "SERVED") {
-    return "PAID";
+  if (status === "SERVED" || status === "AWAITING_PAYMENT") {
+    return "COMPLETED";
   }
 
   return null;

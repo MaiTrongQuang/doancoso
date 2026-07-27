@@ -11,7 +11,11 @@ import {
   PanelHeader,
 } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { buildOrderLink, resolveAppBaseUrl } from "./table-links";
+import {
+  buildOrderLink,
+  buildOrderPath,
+  resolveAppBaseUrl,
+} from "./table-links";
 
 type TableStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
 
@@ -524,8 +528,8 @@ export function TableManager() {
                         <h3 className="mt-1 text-lg font-bold text-[#1f2933]">
                           {table.name}
                         </h3>
-                        <p className="mt-1 text-xs text-[#625b50]">
-                          /order/table/{table.id}
+                        <p className="mt-1 break-all text-xs text-[#625b50]">
+                          {buildOrderPath(table)}
                         </p>
                       </div>
                       <span

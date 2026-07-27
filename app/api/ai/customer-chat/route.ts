@@ -49,7 +49,7 @@ async function fetchTopProducts() {
     FROM order_items oi
     INNER JOIN orders o ON o.id = oi.order_id
     INNER JOIN products p ON p.id = oi.product_id
-    WHERE o.status::text = ${OrderStatus.PAID}
+    WHERE o.status::text IN (${OrderStatus.PAID}, ${OrderStatus.COMPLETED})
     GROUP BY p.id, p.name
     ORDER BY quantity DESC, p.name ASC
     LIMIT 5

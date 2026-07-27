@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-type UserRole = "ADMIN" | "STAFF" | "CASHIER";
+type UserRole = "ADMIN" | "STAFF" | "CASHIER" | "BARISTA" | "SERVER";
 
 type User = {
   id: number;
@@ -65,6 +65,18 @@ const roleOptions: Array<{
     description: "Xác nhận thanh toán, cập nhật đơn và tạo hóa đơn.",
     className: "bg-violet-50 text-violet-700",
   },
+  {
+    value: "BARISTA",
+    label: "Pha chế",
+    description: "Chuẩn bị món và đánh dấu món sẵn sàng.",
+    className: "bg-amber-50 text-amber-700",
+  },
+  {
+    value: "SERVER",
+    label: "Phục vụ",
+    description: "Giao món và xác nhận đã phục vụ khách.",
+    className: "bg-emerald-50 text-emerald-700",
+  },
 ];
 
 const roleLabel = roleOptions.reduce<Record<UserRole, string>>(
@@ -76,6 +88,8 @@ const roleLabel = roleOptions.reduce<Record<UserRole, string>>(
     ADMIN: "Admin",
     STAFF: "Nhân viên",
     CASHIER: "Quầy vận hành",
+    BARISTA: "Pha chế",
+    SERVER: "Phục vụ",
   },
 );
 
@@ -145,6 +159,8 @@ export function UserManager() {
         ADMIN: 0,
         STAFF: 0,
         CASHIER: 0,
+        BARISTA: 0,
+        SERVER: 0,
       },
     );
   }, [users]);

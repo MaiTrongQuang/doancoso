@@ -37,6 +37,7 @@ type CustomerTable = {
   id: number;
   name: string;
   activeSessionId: number | null;
+  qrToken: string;
 };
 
 type CartItem = {
@@ -80,7 +81,7 @@ type MenuVisual = {
 const allCategory = "ALL";
 const autumnMenuImage = "/images/menu/autumn-special-menu.png";
 const successMessage =
-  "Đã gửi đơn. Vui lòng thanh toán tại quầy để quán chuyển món sang pha chế.";
+  "Đã gửi đơn. Quán sẽ chuẩn bị món và thu tiền sau khi phục vụ.";
 
 const heroImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuAjyVtJO98Pc71lJgKUEoqc9BkFspIH7-HZLzEp-0UfDVS6DgMSg8aNv-b9UPs7RskpspwRT1DeEHpwCmYucBkGw0CBjaeEbTXT_vmY5xtRjHpx9LSzr0Lp6nt5AMBxFmSxk66XQesWDRiCgK036crU0eQNLHSIJav9fzbhpbPo_dtH21VpwLQ3HmFOTPJx9jPU2fttZ5kTGJP7PiWl9roxzwu43J4--Mk9waWVduOjCRQ_gqyyPSobfWfjtDJoJgnzG5nX3FYoO7Q";
@@ -222,10 +223,13 @@ const productRankByName = new Map(
 );
 
 const statusLabel: Record<string, string> = {
-  PENDING: "Chờ thanh toán tại quầy",
-  CONFIRMED: "Đã thu tiền",
+  PENDING: "Đã gửi, chờ tiếp nhận",
+  CONFIRMED: "Đã gửi bếp",
   PREPARING: "Đang chuẩn bị",
+  READY: "Sẵn sàng phục vụ",
   SERVED: "Đã phục vụ",
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  COMPLETED: "Hoàn tất",
   PAID: "Đã thanh toán",
   CANCELLED: "Đã hủy",
 };
@@ -518,6 +522,7 @@ export function CustomerOrder({
   ]);
   const categoryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  const submitIdempotencyKeyRef = useRef<string | null>(null);
 
   const orderedCategories = useMemo(() => {
     return [...categories]
@@ -933,13 +938,17 @@ export function CustomerOrder({
     setIsSubmitting(true);
 
     try {
+      const idempotencyKey =
+        submitIdempotencyKeyRef.current ?? crypto.randomUUID();
+      submitIdempotencyKeyRef.current = idempotencyKey;
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({
-          tableId: table.id,
+          qrToken: table.qrToken,
           sessionId: table.activeSessionId,
           note,
           items: cartItems.map((item) => ({
@@ -963,6 +972,7 @@ export function CustomerOrder({
       setSubmittedOrder(result.data ?? null);
       setCart({});
       setNote("");
+      submitIdempotencyKeyRef.current = null;
       setIsCartOpen(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caughtError) {

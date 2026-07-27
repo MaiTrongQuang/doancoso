@@ -3,6 +3,10 @@ import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
 import { activeTableOrderStatuses } from "@/lib/table-session-flow";
+import {
+  ensureTableQrConfig,
+  rotateTableQrConfig,
+} from "@/lib/table-qr";
 
 type RouteContext = {
   params: Promise<{
@@ -142,6 +146,8 @@ export async function PUT(request: Request, { params }: RouteContext) {
     }
 
     const updatedTable = await prisma.$transaction(async (tx) => {
+      let createdSession = false;
+
       if (status === TableStatus.OCCUPIED) {
         const activeSession = await tx.diningSession.findFirst({
           where: {
@@ -157,6 +163,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
               status: DiningSessionStatus.OPEN,
             },
           });
+          createdSession = true;
         }
       }
 
@@ -173,13 +180,21 @@ export async function PUT(request: Request, { params }: RouteContext) {
         });
       }
 
-      return tx.cafeTable.update({
+      await tx.cafeTable.update({
         where: { id },
         data: {
           name,
           status,
-          qrCodeUrl: table.qrCodeUrl ?? `/order/table/${id}`,
         },
+      });
+      if (createdSession) {
+        await rotateTableQrConfig(tx, id);
+      } else {
+        await ensureTableQrConfig(tx, id);
+      }
+
+      return tx.cafeTable.findUniqueOrThrow({
+        where: { id },
         include: {
           _count: {
             select: {

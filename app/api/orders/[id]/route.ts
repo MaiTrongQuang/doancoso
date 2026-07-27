@@ -163,7 +163,13 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const canReadOrder = await hasRole(["ADMIN", "STAFF", "CASHIER"]);
+    const canReadOrder = await hasRole([
+      "ADMIN",
+      "STAFF",
+      "CASHIER",
+      "BARISTA",
+      "SERVER",
+    ]);
 
     if (!canReadOrder) {
       return NextResponse.json(
@@ -378,7 +384,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       return NextResponse.json(
         {
           message:
-            "Chỉ có thể cập nhật đơn đang chờ thanh toán tại quầy.",
+            "Chỉ có thể sửa món khi đơn còn ở trạng thái khởi tạo.",
         },
         { status: 409 },
       );
@@ -470,7 +476,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({
-      message: "Đã cập nhật đơn chờ thanh toán.",
+      message: "Đã cập nhật đơn khởi tạo.",
       data: serializeOrder(updatedOrder),
     });
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DiningSessionStatus, TableStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
+import { ensureTableQrConfig } from "@/lib/table-qr";
 
 function normalizeName(value: unknown) {
   if (typeof value !== "string") {
@@ -69,8 +70,19 @@ export async function GET() {
       },
     });
 
+    const secureTables = await prisma.$transaction(async (tx) => {
+      const nextTables = [];
+
+      for (const table of tables) {
+        const qrConfig = await ensureTableQrConfig(tx, table.id);
+        nextTables.push({ ...table, qrCodeUrl: qrConfig.qrCodeUrl });
+      }
+
+      return nextTables;
+    });
+
     return NextResponse.json({
-      data: tables.map(serializeTable),
+      data: secureTables.map(serializeTable),
     });
   } catch (error) {
     console.error(error);
@@ -137,12 +149,11 @@ export async function POST(request: Request) {
         });
       }
 
-      return tx.cafeTable.update({
+      await ensureTableQrConfig(tx, createdTable.id);
+
+      return tx.cafeTable.findUniqueOrThrow({
         where: {
           id: createdTable.id,
-        },
-        data: {
-          qrCodeUrl: `/order/table/${createdTable.id}`,
         },
         include: {
           _count: {

@@ -4,7 +4,7 @@ export type SessionPayload = {
   userId: number;
   name: string;
   email: string;
-  role: "ADMIN" | "STAFF" | "CASHIER";
+  role: "ADMIN" | "STAFF" | "CASHIER" | "BARISTA" | "SERVER";
 };
 
 export function getJwtSecret() {

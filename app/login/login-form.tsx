@@ -10,7 +10,7 @@ type LoginResponse = {
     id: number;
     name: string;
     email: string;
-    role: "ADMIN" | "STAFF" | "CASHIER";
+    role: "ADMIN" | "STAFF" | "CASHIER" | "BARISTA" | "SERVER";
   };
 };
 

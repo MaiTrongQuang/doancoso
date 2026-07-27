@@ -8,13 +8,16 @@ import {
 
 assert.equal(canPayDiningSession(["SERVED"]), true);
 assert.equal(canPayDiningSession(["SERVED", "SERVED"]), true);
+assert.equal(canPayDiningSession(["SERVED", "AWAITING_PAYMENT"]), true);
 assert.equal(canPayDiningSession(["SERVED", "CANCELLED"]), true);
 assert.equal(canPayDiningSession(["SERVED", "PREPARING"]), false);
+assert.equal(canPayDiningSession(["COMPLETED"]), false);
 assert.equal(canPayDiningSession(["CANCELLED"]), false);
 
 assert.equal(shouldReleaseTable([]), true);
 assert.equal(shouldReleaseTable(["PAID", "CANCELLED"]), true);
 assert.equal(shouldReleaseTable(["SERVED"]), false);
+assert.equal(shouldReleaseTable(["AWAITING_PAYMENT"]), false);
 assert.equal(shouldReleaseTable(["PAID", "PREPARING"]), false);
 
 assert.equal(canAcceptQrOrderForTable("AVAILABLE"), true);

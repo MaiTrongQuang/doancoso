@@ -20,7 +20,7 @@ assert.equal(
     id: 1,
     qrCodeUrl: null,
   }),
-  "/order/table/1",
+  "/admin/tables",
 );
 
 assert.equal(

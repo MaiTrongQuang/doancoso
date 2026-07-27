@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import {
   DiningSessionStatus,
   OrderStatus,
-  Prisma,
-  ProductStatus,
   TableStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -19,11 +17,10 @@ import {
   serializeOrdersGroupedBySessionSummary,
   serializeOrdersGroupedBySession,
 } from "@/lib/order-read-model";
-import {
-  buildCustomerOrderDraft,
-  serializeCustomerSubmittedOrder,
-} from "@/lib/customer-order-submit";
+import { serializeCustomerSubmittedOrder } from "@/lib/customer-order-submit";
 import { getOrderPaymentReferenceNumber } from "@/lib/order-payment-reference";
+import { hashTableQrToken, isValidTableQrToken } from "@/lib/table-qr";
+import { transitionOrderStatusInTransaction } from "@/lib/order-workflow";
 
 const orderStatuses = new Set<string>(Object.values(OrderStatus));
 
@@ -31,25 +28,17 @@ type CustomerOrderContext = {
   tableId: number;
   tableStatus: TableStatus;
   activeSessionId: number | null;
-  products: Array<{
-    id: number;
-    price: number;
-  }>;
 };
 
-type CustomerOrderItemDraft = {
-  productId: number;
-  quantity: number;
-  price: number;
-  note: string | null;
-};
-
-type CreatedCustomerOrder = {
-  id: number;
-  sessionId: number | null;
-  status: OrderStatus;
-  totalAmount: number;
-};
+class CustomerOrderError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: 400 | 404 | 409,
+  ) {
+    super(message);
+    this.name = "CustomerOrderError";
+  }
+}
 
 function normalizeStatuses(value: string | null) {
   if (!value) {
@@ -81,7 +70,13 @@ function getVietnamDateRange(value: string | null) {
 
 export async function GET(request: Request) {
   try {
-    const canReadOrders = await hasRole(["ADMIN", "STAFF", "CASHIER"]);
+    const canReadOrders = await hasRole([
+      "ADMIN",
+      "STAFF",
+      "CASHIER",
+      "BARISTA",
+      "SERVER",
+    ]);
 
     if (!canReadOrders) {
       return NextResponse.json(
@@ -226,196 +221,234 @@ function normalizeItems(value: unknown) {
   return Array.from(itemMap.values());
 }
 
-async function getCustomerOrderContext(tableId: number, productIds: number[]) {
-  const rows = await prisma.$queryRaw<CustomerOrderContext[]>(
-    Prisma.sql`
-      WITH requested_products AS (
-        SELECT
-          p.id,
-          p.price
-        FROM products p
-        WHERE
-          p.id IN (${Prisma.join(productIds)})
-          AND p.status = ${ProductStatus.AVAILABLE}::product_status
-      )
-      SELECT
-        t.id AS "tableId",
-        t.status::text AS "tableStatus",
-        (
-          SELECT ds.id
-          FROM dining_sessions ds
-          WHERE
-            ds.table_id = t.id
-            AND ds.status = ${DiningSessionStatus.OPEN}::dining_session_status
-          ORDER BY ds.started_at DESC
-          LIMIT 1
-        ) AS "activeSessionId",
-        COALESCE(
-          (
-            SELECT json_agg(
-              json_build_object(
-                'id', requested_products.id,
-                'price', requested_products.price
-              )
-            )
-            FROM requested_products
-          ),
-          '[]'::json
-        ) AS products
-      FROM cafe_tables t
-      WHERE t.id = ${tableId}
-      LIMIT 1
-    `,
-  );
+async function getCustomerOrderContext(qrToken: string) {
+  if (!isValidTableQrToken(qrToken)) {
+    return null;
+  }
 
-  return rows[0] ?? null;
+  const qrConfig = await prisma.qrConfig.findFirst({
+    where: {
+      tokenHash: hashTableQrToken(qrToken),
+      active: true,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+    select: {
+      table: {
+        select: {
+          id: true,
+          status: true,
+          sessions: {
+            where: { status: DiningSessionStatus.OPEN },
+            orderBy: { startedAt: "desc" },
+            take: 1,
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!qrConfig) {
+    return null;
+  }
+
+  return {
+    tableId: qrConfig.table.id,
+    tableStatus: qrConfig.table.status,
+    activeSessionId: qrConfig.table.sessions[0]?.id ?? null,
+  } satisfies CustomerOrderContext;
 }
 
 async function createCustomerOrder({
   note,
-  orderItems,
+  items,
+  qrToken,
   tableId,
-  totalAmount,
+  sessionId,
+  idempotencyKey,
 }: {
   note: string | null;
-  orderItems: CustomerOrderItemDraft[];
+  items: IncomingOrderItem[];
+  qrToken: string;
   tableId: number;
-  totalAmount: number;
+  sessionId: number | null;
+  idempotencyKey: string;
 }) {
-  const itemValues = Prisma.join(
-    orderItems.map(
-      (item) =>
-        Prisma.sql`(${item.productId}, ${item.quantity}, ${item.price}, ${item.note}::text)`,
-    ),
-  );
-  const rows = await prisma.$queryRaw<CreatedCustomerOrder[]>(
-    Prisma.sql`
-      WITH locked_table AS (
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM cafe_tables WHERE id = ${tableId} FOR UPDATE`;
+
+    const existingOrder = await tx.order.findUnique({
+      where: { idempotencyKey },
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        totalAmount: true,
+      },
+    });
+
+    if (existingOrder) {
+      return { ...existingOrder, reused: true };
+    }
+
+    const activeQrConfig = await tx.qrConfig.findFirst({
+      where: {
+        tableId,
+        tokenHash: hashTableQrToken(qrToken),
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+
+    if (!activeQrConfig) {
+      throw new CustomerOrderError(
+        "Mã QR bàn đã được thay mới. Vui lòng quét lại mã tại bàn.",
+        409,
+      );
+    }
+
+    const table = await tx.cafeTable.findUnique({
+      where: { id: tableId },
+      select: {
+        status: true,
+        sessions: {
+          where: { status: DiningSessionStatus.OPEN },
+          orderBy: { startedAt: "desc" },
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!table) {
+      throw new CustomerOrderError("Bàn không tồn tại.", 404);
+    }
+
+    if (!canAcceptQrOrderForTable(table.status)) {
+      throw new CustomerOrderError(
+        "Bàn này đang được đặt trước. Vui lòng liên hệ nhân viên.",
+        409,
+      );
+    }
+
+    const activeSessionId = table.sessions[0]?.id ?? null;
+
+    if (!activeSessionId) {
+      throw new CustomerOrderError(
+        "Phiên bàn đã đóng. Vui lòng liên hệ nhân viên để mở phiên mới.",
+        409,
+      );
+    }
+
+    if (sessionId !== null && sessionId !== activeSessionId) {
+      throw new CustomerOrderError(
+        "Phiên gọi món không còn hiệu lực. Vui lòng quét lại mã QR tại bàn.",
+        409,
+      );
+    }
+
+    // Lock product rows before checking availability so a stale customer menu
+    // cannot win a race against an admin marking a product unavailable.
+    for (const item of items) {
+      await tx.$queryRaw`
         SELECT id
-        FROM cafe_tables
-        WHERE id = ${tableId}
+        FROM products
+        WHERE id = ${item.productId}
         FOR UPDATE
-      ),
-      current_session AS (
-        SELECT ds.id
-        FROM dining_sessions ds
-        JOIN locked_table ON locked_table.id = ds.table_id
-        WHERE ds.status = ${DiningSessionStatus.OPEN}::dining_session_status
-        ORDER BY ds.started_at DESC
-        LIMIT 1
-      ),
-      new_session AS (
-        INSERT INTO dining_sessions (
-          table_id,
-          status,
-          started_at,
-          created_at,
-          updated_at
-        )
-        SELECT
-          locked_table.id,
-          ${DiningSessionStatus.OPEN}::dining_session_status,
-          NOW(),
-          NOW(),
-          NOW()
-        FROM locked_table
-        WHERE NOT EXISTS (SELECT 1 FROM current_session)
-        RETURNING id
-      ),
-      session_row AS (
-        SELECT id FROM current_session
-        UNION ALL
-        SELECT id FROM new_session
-        LIMIT 1
-      ),
-      created_order AS (
-        INSERT INTO orders (
-          table_id,
-          session_id,
-          status,
-          total_amount,
-          note,
-          created_at,
-          updated_at
-        )
-        SELECT
-          locked_table.id,
-          session_row.id,
-          ${OrderStatus.PENDING}::order_status,
-          ${totalAmount},
-          ${note},
-          NOW(),
-          NOW()
-        FROM locked_table
-        CROSS JOIN session_row
-        RETURNING
-          id,
-          session_id AS "sessionId",
-          status::text AS status,
-          total_amount AS "totalAmount"
-      ),
-      inserted_items AS (
-        INSERT INTO order_items (
-          order_id,
-          product_id,
-          quantity,
-          price,
-          note
-        )
-        SELECT
-          created_order.id,
-          item.product_id::integer,
-          item.quantity::integer,
-          item.price::integer,
-          item.note::text
-        FROM created_order
-        CROSS JOIN (VALUES ${itemValues}) AS item(
-          product_id,
-          quantity,
-          price,
-          note
-        )
-        RETURNING id
-      ),
-      updated_table AS (
-        UPDATE cafe_tables
-        SET
-          status = ${TableStatus.OCCUPIED}::table_status,
-          updated_at = NOW()
-        FROM locked_table
-        WHERE
-          cafe_tables.id = locked_table.id
-          AND cafe_tables.status <> ${TableStatus.OCCUPIED}::table_status
-        RETURNING cafe_tables.id
-      )
-      SELECT
-        id,
-        "sessionId",
-        status,
-        "totalAmount"
-      FROM created_order
-      LIMIT 1
-    `,
-  );
+      `;
+    }
 
-  if (!rows[0]) {
-    throw new Error("Unable to create customer order.");
-  }
+    const products = await tx.product.findMany({
+      where: {
+        id: { in: items.map((item) => item.productId) },
+        status: "AVAILABLE",
+      },
+      select: { id: true, price: true },
+    });
 
-  return rows[0];
+    if (products.length !== new Set(items.map((item) => item.productId)).size) {
+      throw new CustomerOrderError(
+        "Một số món đã ngừng bán hoặc không tồn tại.",
+        400,
+      );
+    }
+
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const totalAmount = items.reduce(
+      (total, item) => total + productById.get(item.productId)!.price * item.quantity,
+      0,
+    );
+
+    const order = await tx.order.create({
+      data: {
+        tableId,
+        sessionId: activeSessionId,
+        idempotencyKey,
+        status: OrderStatus.PENDING,
+        totalAmount,
+        note,
+        items: {
+          create: items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: productById.get(item.productId)!.price,
+            note: item.note,
+          })),
+        },
+        statusHistory: {
+          create: {
+            fromStatus: null,
+            toStatus: OrderStatus.PENDING,
+            reason: "Khách gửi đơn từ QR tại bàn.",
+          },
+        },
+      },
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        totalAmount: true,
+      },
+    });
+
+    // Sending from the customer menu is the system event that moves the
+    // order from creation into the kitchen queue.
+    const submittedOrder = await transitionOrderStatusInTransaction(tx, {
+      orderId: order.id,
+      actorUserId: null,
+      actorRole: "SYSTEM",
+      nextStatus: OrderStatus.CONFIRMED,
+    });
+
+    await tx.cafeTable.update({
+      where: { id: tableId },
+      data: { status: TableStatus.OCCUPIED },
+    });
+
+    return { ...order, status: submittedOrder.status, reused: false };
+  });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
-    const tableId = normalizeId(body?.tableId);
+    const qrToken = typeof body?.qrToken === "string" ? body.qrToken.trim() : "";
     const sessionId = normalizeId(body?.sessionId);
     const note = normalizeOptionalText(body?.note);
     const items = normalizeItems(body?.items);
+    const idempotencyKey = request.headers.get("Idempotency-Key")?.trim() ?? "";
 
-    if (!tableId) {
+    if (!isValidTableQrToken(qrToken)) {
       return NextResponse.json(
-        { message: "Mã bàn không hợp lệ." },
+        { message: "Mã QR bàn không hợp lệ hoặc đã hết hiệu lực." },
+        { status: 400 },
+      );
+    }
+
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(idempotencyKey)) {
+      return NextResponse.json(
+        { message: "Thiếu mã yêu cầu để chống tạo đơn trùng." },
         { status: 400 },
       );
     }
@@ -427,8 +460,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const productIds = items.map((item) => item.productId);
-    const orderContext = await getCustomerOrderContext(tableId, productIds);
+    const orderContext = await getCustomerOrderContext(qrToken);
 
     if (!orderContext) {
       return NextResponse.json(
@@ -461,32 +493,32 @@ export async function POST(request: Request) {
       );
     }
 
-    if (orderContext.products.length !== productIds.length) {
-      return NextResponse.json(
-        { message: "Một số món đã ngừng bán hoặc không tồn tại." },
-        { status: 400 },
-      );
-    }
-
-    const { orderItems, totalAmount } = buildCustomerOrderDraft({
-      items,
-      products: orderContext.products,
-    });
     const order = await createCustomerOrder({
       note,
-      orderItems,
-      tableId,
-      totalAmount,
+      items,
+      qrToken,
+      tableId: orderContext.tableId,
+      sessionId,
+      idempotencyKey,
     });
 
     return NextResponse.json(
       {
-        message: `Đã gửi đơn. Mang mã thanh toán #${getOrderPaymentReferenceNumber(order)} ra quầy để thanh toán và quán chuyển món sang pha chế.`,
+        message: order.reused
+          ? `Đơn #${getOrderPaymentReferenceNumber(order)} đã được ghi nhận trước đó.`
+          : `Đã gửi đơn #${getOrderPaymentReferenceNumber(order)}. Quán sẽ chuẩn bị món và thu tiền sau khi phục vụ.`,
         data: serializeCustomerSubmittedOrder(order),
       },
-      { status: 201 },
+      { status: order.reused ? 200 : 201 },
     );
   } catch (error) {
+    if (error instanceof CustomerOrderError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.statusCode },
+      );
+    }
+
     console.error(error);
 
     return NextResponse.json(

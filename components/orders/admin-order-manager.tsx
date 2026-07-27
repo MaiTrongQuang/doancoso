@@ -15,7 +15,10 @@ type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
+  | "READY"
   | "SERVED"
+  | "AWAITING_PAYMENT"
+  | "COMPLETED"
   | "PAID"
   | "CANCELLED";
 
@@ -42,28 +45,37 @@ type AdminOrder = {
 
 const statusOptions: Array<{ value: "ALL" | OrderStatus; label: string }> = [
   { value: "ALL", label: "Tất cả trạng thái" },
-  { value: "PENDING", label: "Chờ thanh toán" },
-  { value: "CONFIRMED", label: "Đã thu tiền" },
+  { value: "PENDING", label: "Khởi tạo" },
+  { value: "CONFIRMED", label: "Đã gửi bếp" },
   { value: "PREPARING", label: "Đang chuẩn bị" },
+  { value: "READY", label: "Sẵn sàng phục vụ" },
   { value: "SERVED", label: "Đã phục vụ" },
-  { value: "PAID", label: "Đã thanh toán" },
+  { value: "AWAITING_PAYMENT", label: "Chờ thanh toán" },
+  { value: "COMPLETED", label: "Hoàn tất" },
+  { value: "PAID", label: "Đã thanh toán (cũ)" },
   { value: "CANCELLED", label: "Đã hủy" },
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  PENDING: "Chờ thanh toán",
-  CONFIRMED: "Đã thu tiền",
+  PENDING: "Khởi tạo",
+  CONFIRMED: "Đã gửi bếp",
   PREPARING: "Đang chuẩn bị",
+  READY: "Sẵn sàng phục vụ",
   SERVED: "Đã phục vụ",
-  PAID: "Đã thanh toán",
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  COMPLETED: "Hoàn tất",
+  PAID: "Đã thanh toán (cũ)",
   CANCELLED: "Đã hủy",
 };
 
 const statusClassName: Record<OrderStatus, string> = {
-  PENDING: "bg-amber-50 text-amber-700",
+  PENDING: "bg-slate-100 text-slate-700",
   CONFIRMED: "bg-sky-50 text-sky-700",
   PREPARING: "bg-violet-50 text-violet-700",
+  READY: "bg-cyan-50 text-cyan-700",
   SERVED: "bg-emerald-50 text-emerald-700",
+  AWAITING_PAYMENT: "bg-amber-50 text-amber-700",
+  COMPLETED: "bg-teal-50 text-teal-700",
   PAID: "bg-stone-100 text-stone-700",
   CANCELLED: "bg-red-50 text-red-700",
 };

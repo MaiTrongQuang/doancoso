@@ -3,6 +3,7 @@ import { DiningSessionStatus } from "@prisma/client";
 import { CustomerOrder } from "@/components/orders";
 import { getCustomerMenuCategories } from "@/lib/customer-menu-catalog";
 import { prisma } from "@/lib/prisma";
+import { hashTableQrToken, isValidTableQrToken } from "@/lib/table-qr";
 
 type CustomerOrderPageProps = {
   params: Promise<{
@@ -10,36 +11,37 @@ type CustomerOrderPageProps = {
   }>;
 };
 
-function parseTableId(value: string) {
-  const tableId = Number(value);
-  return Number.isInteger(tableId) && tableId > 0 ? tableId : null;
-}
-
 export default async function CustomerOrderPage({
   params,
 }: CustomerOrderPageProps) {
   const { tableId: tableIdParam } = await params;
-  const tableId = parseTableId(tableIdParam);
+  const qrToken = decodeURIComponent(tableIdParam);
 
-  if (!tableId) {
+  if (!isValidTableQrToken(qrToken)) {
     notFound();
   }
 
   const [table, categories] = await Promise.all([
-    prisma.cafeTable.findUnique({
+    prisma.qrConfig.findFirst({
       where: {
-        id: tableId,
+        tokenHash: hashTableQrToken(qrToken),
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       select: {
-        id: true,
-        name: true,
-        sessions: {
-          where: {
-            status: DiningSessionStatus.OPEN,
-          },
-          take: 1,
+        table: {
           select: {
             id: true,
+            name: true,
+            sessions: {
+              where: {
+                status: DiningSessionStatus.OPEN,
+              },
+              take: 1,
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
@@ -51,15 +53,20 @@ export default async function CustomerOrderPage({
     notFound();
   }
 
-  const activeSessionId = table.sessions[0]?.id ?? null;
+  const activeSessionId = table.table.sessions[0]?.id ?? null;
+
+  if (!activeSessionId) {
+    notFound();
+  }
 
   return (
     <CustomerOrder
       categories={categories}
       table={{
-        id: table.id,
-        name: table.name,
+        id: table.table.id,
+        name: table.table.name,
         activeSessionId,
+        qrToken,
       }}
     />
   );

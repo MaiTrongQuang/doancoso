@@ -14,6 +14,8 @@ model User {
   email     String   @unique
   password  String   @map("password_hash")
   role      Role     @default(STAFF)
+  orderStatusChanges OrderStatusHistory[]
+  auditLogs         AuditLog[]
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -56,6 +58,7 @@ model CafeTable {
   name      String          @unique
   status    TableStatus     @default(AVAILABLE)
   qrCodeUrl String?         @map("qr_code_url")
+  qrConfig  QrConfig?
   orders    Order[]
   sessions  DiningSession[]
   createdAt DateTime        @default(now()) @map("created_at")
@@ -87,12 +90,15 @@ model Order {
   table       CafeTable      @relation(fields: [tableId], references: [id])
   sessionId   Int?           @map("session_id")
   session     DiningSession? @relation(fields: [sessionId], references: [id])
+  idempotencyKey String?      @unique @map("idempotency_key")
   status      OrderStatus    @default(PENDING)
   totalAmount Int            @default(0) @map("total_amount")
   note        String?
   items       OrderItem[]
   invoice     Invoice?
   payment     Payment?
+  statusHistory OrderStatusHistory[]
+  paymentTransactions PaymentTransaction[]
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
@@ -112,6 +118,7 @@ model OrderItem {
   quantity  Int
   price     Int
   note      String?
+  status    OrderItemStatus @default(PENDING)
 
   @@index([orderId])
   @@index([productId])
@@ -151,15 +158,85 @@ model Payment {
   paidAt             DateTime?       @map("paid_at")
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
+  transactions       PaymentTransaction[]
 
   @@index([status, createdAt])
   @@map("payments")
+}
+
+model OrderStatusHistory {
+  id          Int         @id @default(autoincrement())
+  orderId     Int         @map("order_id")
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus  OrderStatus? @map("from_status")
+  toStatus    OrderStatus  @map("to_status")
+  actorUserId Int?        @map("actor_user_id")
+  actor       User?       @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("order_status_histories")
+}
+
+model PaymentTransaction {
+  id                    Int                     @id @default(autoincrement())
+  orderId               Int                     @map("order_id")
+  order                 Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentId             Int?                    @map("payment_id")
+  payment               Payment?                @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  provider              PaymentProvider
+  providerTransactionId String                  @unique @map("provider_transaction_id")
+  status                PaymentTransactionStatus @default(RECEIVED)
+  amount                Int
+  referenceCode         String?                 @map("reference_code")
+  rawData               Json?                   @map("raw_data")
+  receivedAt            DateTime                @default(now()) @map("received_at")
+  processedAt           DateTime?               @map("processed_at")
+
+  @@index([orderId, receivedAt])
+  @@index([status, receivedAt])
+  @@map("payment_transactions")
+}
+
+model QrConfig {
+  id        Int       @id @default(autoincrement())
+  tableId   Int       @unique @map("table_id")
+  table     CafeTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  version   Int       @default(1)
+  active    Boolean   @default(true)
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  rotatedAt DateTime? @map("rotated_at")
+
+  @@index([active, expiresAt])
+  @@map("qr_configs")
+}
+
+model AuditLog {
+  id          Int       @id @default(autoincrement())
+  actorUserId Int?      @map("actor_user_id")
+  actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String    @map("entity_type")
+  entityId    Int?      @map("entity_id")
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
 }
 
 enum Role {
   ADMIN
   STAFF
   CASHIER
+  BARISTA
+  SERVER
 
   @@map("user_role")
 }
@@ -183,11 +260,24 @@ enum OrderStatus {
   PENDING
   CONFIRMED
   PREPARING
+  READY
   SERVED
+  AWAITING_PAYMENT
+  COMPLETED
   PAID
   CANCELLED
 
   @@map("order_status")
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+
+  @@map("order_item_status")
 }
 
 enum DiningSessionStatus {
@@ -208,6 +298,7 @@ enum PaymentMethod {
 
 enum PaymentProvider {
   SEPAY
+  INTERNAL
 
   @@map("payment_provider")
 }
@@ -220,4 +311,14 @@ enum PaymentStatus {
   EXPIRED
 
   @@map("payment_status")
+}
+
+enum PaymentTransactionStatus {
+  RECEIVED
+  APPLIED
+  DUPLICATE
+  CONFLICT
+  REJECTED
+
+  @@map("payment_transaction_status")
 }

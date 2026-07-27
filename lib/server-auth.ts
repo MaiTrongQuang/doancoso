@@ -26,3 +26,16 @@ export async function hasRole(allowedRoles: SessionPayload["role"][]) {
 
   return allowedRoles.includes(session.role);
 }
+
+export async function getCurrentActor() {
+  const session = await getCurrentSession();
+
+  if (!session) {
+    return null;
+  }
+
+  return {
+    userId: session.userId,
+    role: session.role,
+  };
+}

@@ -71,6 +71,28 @@ const internalGroups: Record<SessionPayload["role"], HomeRoleGroup[]> = {
       routes: cashierRoutes,
     },
   ],
+  BARISTA: [
+    {
+      title: "Pha chế",
+      eyebrow: "Barista",
+      cta: "Mở hàng đợi pha chế",
+      description: "Tiếp nhận đơn và cập nhật trạng thái chuẩn bị món.",
+      accent: "#8a4f13",
+      image: "/images/menu/tea.svg",
+      routes: staffRoutes,
+    },
+  ],
+  SERVER: [
+    {
+      title: "Phục vụ",
+      eyebrow: "Server",
+      cta: "Mở hàng đợi phục vụ",
+      description: "Giao món đã sẵn sàng và xác nhận đã phục vụ khách.",
+      accent: "#2f5d50",
+      image: "/images/menu/coffee.svg",
+      routes: staffRoutes,
+    },
+  ],
 };
 
 export function getHomeAccessModel(role: SessionPayload["role"] | null) {

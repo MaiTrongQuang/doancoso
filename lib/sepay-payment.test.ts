@@ -84,11 +84,13 @@ assert.equal(canConfirmSepayPayment("CANCELLED"), false);
 assert.equal(canConfirmSepayPayment("EXPIRED"), false);
 assert.equal(canConfirmSepayPayment("FAILED"), false);
 
-assert.equal(canCreateSepayPaymentForOrderStatus("PENDING"), true);
+assert.equal(canCreateSepayPaymentForOrderStatus("PENDING"), false);
 assert.equal(canCreateSepayPaymentForOrderStatus("SERVED"), true);
+assert.equal(canCreateSepayPaymentForOrderStatus("AWAITING_PAYMENT"), true);
 assert.equal(canCreateSepayPaymentForOrderStatus("CONFIRMED"), false);
-assert.equal(getOrderStatusAfterSepayPayment("PENDING"), "CONFIRMED");
-assert.equal(getOrderStatusAfterSepayPayment("SERVED"), "PAID");
+assert.equal(getOrderStatusAfterSepayPayment("PENDING"), null);
+assert.equal(getOrderStatusAfterSepayPayment("SERVED"), "COMPLETED");
+assert.equal(getOrderStatusAfterSepayPayment("AWAITING_PAYMENT"), "COMPLETED");
 assert.equal(getOrderStatusAfterSepayPayment("CONFIRMED"), null);
 
 assert.equal(normalizeSepayAmount(125000), 125000);

@@ -36,7 +36,9 @@ export function buildOrderPath(table: TableLinkSource) {
   const rawPath = table.qrCodeUrl?.trim();
 
   if (!rawPath) {
-    return `/order/table/${table.id}`;
+    // A table id is not a customer authorization token. The tables API
+    // provisions a secure QR path before this helper is used.
+    return "/admin/tables";
   }
 
   try {

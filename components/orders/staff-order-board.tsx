@@ -19,8 +19,14 @@ import {
   applyStaffOrderPatch,
 } from "@/lib/staff-order-queue";
 
-type StaffOrderStatus = "CONFIRMED" | "PREPARING";
-type OrderStatus = StaffOrderStatus | "SERVED" | "PAID" | "CANCELLED";
+type StaffOrderStatus = "CONFIRMED" | "PREPARING" | "READY";
+type OrderStatus =
+  | StaffOrderStatus
+  | "SERVED"
+  | "AWAITING_PAYMENT"
+  | "COMPLETED"
+  | "PAID"
+  | "CANCELLED";
 
 type StaffOrder = {
   id: number;
@@ -57,9 +63,9 @@ type OrderAction = {
   nextStatus: OrderStatus;
 };
 
-type StatusCardKey = "CONFIRMED" | "PREPARING";
+type StatusCardKey = "CONFIRMED" | "PREPARING" | "READY";
 
-const visibleStatuses: StaffOrderStatus[] = ["CONFIRMED", "PREPARING"];
+const visibleStatuses: StaffOrderStatus[] = ["CONFIRMED", "PREPARING", "READY"];
 const kitchenPollIntervalMs = 12_000;
 
 const statusCards: Array<{
@@ -77,12 +83,20 @@ const statusCards: Array<{
     label: "Đang chuẩn bị",
     statuses: ["PREPARING"],
   },
+  {
+    key: "READY",
+    label: "Sẵn sàng phục vụ",
+    statuses: ["READY"],
+  },
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
-  CONFIRMED: "Đã thu tiền",
+  CONFIRMED: "Đã gửi bếp",
   PREPARING: "Đang chuẩn bị",
+  READY: "Sẵn sàng phục vụ",
   SERVED: "Đã phục vụ",
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  COMPLETED: "Hoàn tất",
   PAID: "Đã thanh toán",
   CANCELLED: "Đã hủy",
 };
@@ -93,6 +107,10 @@ const primaryActionByStatus: Partial<Record<OrderStatus, OrderAction>> = {
     nextStatus: "PREPARING",
   },
   PREPARING: {
+    label: "Đã sẵn sàng",
+    nextStatus: "READY",
+  },
+  READY: {
     label: "Đã phục vụ",
     nextStatus: "SERVED",
   },
@@ -210,6 +228,7 @@ export function StaffOrderBoard() {
       {
         CONFIRMED: 0,
         PREPARING: 0,
+        READY: 0,
       },
     );
   }, [orders]);
@@ -375,7 +394,7 @@ export function StaffOrderBoard() {
       <PageHero
         eyebrow="Staff"
         title="Pha chế & phục vụ"
-        description="Chỉ hiển thị đơn đã được quầy xác nhận thanh toán. Nhân viên pha chế, cập nhật món đang chuẩn bị và đánh dấu đã phục vụ."
+        description="Tiếp nhận đơn, cập nhật đang chuẩn bị, sẵn sàng và đã phục vụ. Thanh toán được thực hiện sau khi giao món."
         actions={
           <div className="flex flex-wrap gap-2">
             <button
@@ -400,7 +419,7 @@ export function StaffOrderBoard() {
           </div>
         }
         meta={
-          <section className="grid gap-3 sm:grid-cols-2">
+          <section className="grid gap-3 sm:grid-cols-3">
             {statusCards.map((card) => (
               <div
                 className="rounded-2xl border border-[#eadfce] bg-white/78 p-4 shadow-sm"
@@ -419,7 +438,9 @@ export function StaffOrderBoard() {
                     className={
                       card.key === "CONFIRMED"
                         ? "pos-badge bg-sky-50 text-sky-700"
-                        : "pos-badge bg-violet-50 text-violet-700"
+                        : card.key === "PREPARING"
+                          ? "pos-badge bg-violet-50 text-violet-700"
+                          : "pos-badge bg-emerald-50 text-emerald-700"
                     }
                   >
                     Đang mở
@@ -448,7 +469,7 @@ export function StaffOrderBoard() {
       <Panel className="overflow-hidden">
         <PanelHeader
           title="Hàng đợi bếp"
-          description="Các đơn trong hàng đợi này đều đã được thu tiền/xác nhận tại quầy."
+          description="Theo dõi đơn đã gửi bếp, đang chuẩn bị và sẵn sàng phục vụ."
           aside={<CountPill>{orders.length} đơn</CountPill>}
         />
 
@@ -493,7 +514,9 @@ export function StaffOrderBoard() {
                           className={`pos-badge ${
                             order.status === "PREPARING"
                               ? "bg-violet-50 text-violet-700"
-                              : "bg-sky-50 text-sky-700"
+                              : order.status === "READY"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-sky-50 text-sky-700"
                           }`}
                         >
                           {statusLabel[order.status]}

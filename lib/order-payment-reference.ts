@@ -6,11 +6,11 @@ type OrderPaymentReferenceSource = {
 export function getOrderPaymentReferenceNumber(
   order: OrderPaymentReferenceSource,
 ) {
-  return order.sessionId ?? order.id;
+  return order.id;
 }
 
 export function getOrderPaymentReferenceLabel(
   order: OrderPaymentReferenceSource,
 ) {
-  return `Mã thanh toán #${getOrderPaymentReferenceNumber(order)}`;
+  return `Mã đơn #${getOrderPaymentReferenceNumber(order)}`;
 }

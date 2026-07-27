@@ -15,8 +15,8 @@ import {
   normalizeSepayText,
 } from "@/lib/sepay-payment";
 import { prisma } from "@/lib/prisma";
-import { hasRole } from "@/lib/server-auth";
-import { canPayDiningSession } from "@/lib/table-session-flow";
+import { getCurrentActor } from "@/lib/server-auth";
+import { transitionOrderStatus } from "@/lib/order-workflow";
 
 function normalizeId(value: unknown) {
   const id = typeof value === "number" ? value : Number.parseInt(String(value), 10);
@@ -156,7 +156,9 @@ export async function POST(request: Request) {
   let normalizedOrderId: number | null = null;
 
   try {
-    const canCreatePayment = await hasRole(["ADMIN", "CASHIER"]);
+    const actor = await getCurrentActor();
+    const canCreatePayment =
+      actor && ["ADMIN", "CASHIER"].includes(actor.role);
 
     if (!canCreatePayment) {
       return NextResponse.json(
@@ -221,7 +223,7 @@ export async function POST(request: Request) {
 
     if (!canCreateSepayPaymentForOrderStatus(order.status)) {
       return NextResponse.json(
-        { message: "Chỉ có thể tạo QR cho đơn chờ thanh toán hoặc đã phục vụ." },
+        { message: "Chỉ có thể tạo QR cho đơn đã phục vụ hoặc đang chờ thanh toán." },
         { status: 400 },
       );
     }
@@ -248,27 +250,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const billOrders = order.session?.orders ?? [order];
-    const amount =
-      order.status === OrderStatus.PENDING
-        ? order.totalAmount
-        : billOrders
-            .filter((billOrder) => billOrder.status === OrderStatus.SERVED)
-            .reduce((total, billOrder) => total + billOrder.totalAmount, 0);
-
     if (order.status === OrderStatus.SERVED) {
-      const billOrderStatuses = billOrders.map((billOrder) => billOrder.status);
-
-      if (!canPayDiningSession(billOrderStatuses)) {
-        return NextResponse.json(
-          {
-            message:
-              "Chỉ có thể tạo QR khi tất cả đơn trong phiên bàn đã được phục vụ.",
-          },
-          { status: 400 },
-        );
-      }
+      await transitionOrderStatus({
+        orderId,
+        actorUserId: actor?.userId ?? null,
+        actorRole: actor?.role ?? "CASHIER",
+        nextStatus: OrderStatus.AWAITING_PAYMENT,
+      });
     }
+
+    const amount = order.totalAmount;
 
     if (amount <= 0) {
       return NextResponse.json(
