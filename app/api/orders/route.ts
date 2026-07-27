@@ -6,10 +6,8 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/server-auth";
-import {
-  canAcceptQrOrderForTable,
-  canUseDiningSessionForOrder,
-} from "@/lib/table-session-flow";
+import { resolveCustomerOrderSession } from "@/lib/customer-order-session";
+import { canAcceptQrOrderForTable } from "@/lib/table-session-flow";
 import {
   buildOrderListQuery,
   serializeOrder,
@@ -27,7 +25,6 @@ const orderStatuses = new Set<string>(Object.values(OrderStatus));
 type CustomerOrderContext = {
   tableId: number;
   tableStatus: TableStatus;
-  activeSessionId: number | null;
 };
 
 class CustomerOrderError extends Error {
@@ -237,12 +234,6 @@ async function getCustomerOrderContext(qrToken: string) {
         select: {
           id: true,
           status: true,
-          sessions: {
-            where: { status: DiningSessionStatus.OPEN },
-            orderBy: { startedAt: "desc" },
-            take: 1,
-            select: { id: true },
-          },
         },
       },
     },
@@ -255,7 +246,6 @@ async function getCustomerOrderContext(qrToken: string) {
   return {
     tableId: qrConfig.table.id,
     tableStatus: qrConfig.table.status,
-    activeSessionId: qrConfig.table.sessions[0]?.id ?? null,
   } satisfies CustomerOrderContext;
 }
 
@@ -332,21 +322,30 @@ async function createCustomerOrder({
       );
     }
 
-    const activeSessionId = table.sessions[0]?.id ?? null;
+    const sessionResolution = resolveCustomerOrderSession(
+      sessionId,
+      table.sessions[0]?.id ?? null,
+    );
 
-    if (!activeSessionId) {
-      throw new CustomerOrderError(
-        "Phiên bàn đã đóng. Vui lòng liên hệ nhân viên để mở phiên mới.",
-        409,
-      );
-    }
-
-    if (sessionId !== null && sessionId !== activeSessionId) {
+    if (sessionResolution.kind === "CONFLICT") {
       throw new CustomerOrderError(
         "Phiên gọi món không còn hiệu lực. Vui lòng quét lại mã QR tại bàn.",
         409,
       );
     }
+
+    const activeSessionId =
+      sessionResolution.kind === "USE"
+        ? sessionResolution.sessionId
+        : (
+            await tx.diningSession.create({
+              data: {
+                tableId,
+                status: DiningSessionStatus.OPEN,
+              },
+              select: { id: true },
+            })
+          ).id;
 
     // Lock product rows before checking availability so a stale customer menu
     // cannot win a race against an admin marking a product unavailable.
@@ -473,21 +472,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           message: "Bàn này đang được đặt trước. Vui lòng liên hệ nhân viên.",
-        },
-        { status: 409 },
-      );
-    }
-
-    if (
-      !canUseDiningSessionForOrder(
-        sessionId,
-        orderContext.activeSessionId ?? null,
-      )
-    ) {
-      return NextResponse.json(
-        {
-          message:
-            "Phiên gọi món không còn hiệu lực. Vui lòng quét lại mã QR tại bàn.",
         },
         { status: 409 },
       );
