@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import {
   applyCashierOrderStatusPatch,
+  canCashierEditOrderItems,
   getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
   isCashierPaymentMethod,
@@ -174,6 +175,15 @@ assert.equal(isCashierPaymentMethod("CASH"), true);
 assert.equal(isCashierPaymentMethod("QR_PAYMENT"), true);
 assert.equal(isCashierPaymentMethod("BANK_TRANSFER"), false);
 assert.equal(isCashierPaymentMethod("cash"), false);
+
+assert.equal(canCashierEditOrderItems("PENDING"), true);
+assert.equal(canCashierEditOrderItems("CONFIRMED"), false);
+assert.equal(canCashierEditOrderItems("PREPARING"), false);
+assert.equal(canCashierEditOrderItems("READY"), false);
+assert.equal(canCashierEditOrderItems("SERVED"), false);
+assert.equal(canCashierEditOrderItems("AWAITING_PAYMENT"), false);
+assert.equal(canCashierEditOrderItems("COMPLETED"), false);
+assert.equal(canCashierEditOrderItems("CANCELLED"), false);
 
 assert.equal(
   hasCashierOrderListChanged(cashierOrders, [

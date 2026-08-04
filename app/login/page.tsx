@@ -51,12 +51,6 @@ export default function LoginPage() {
           >
             <LoginForm />
           </Suspense>
-          <div className="mt-5 rounded-2xl border border-[#eadfce] bg-[#f8f3ea] p-4 text-xs leading-6 text-[#6d645a]">
-            <p className="font-black text-[#172027]">Tài khoản demo</p>
-            <p>admin@gmail.com / 123456</p>
-            <p>staff@gmail.com / 123456</p>
-            <p>cashier@gmail.com / 123456</p>
-          </div>
         </div>
       </section>
     </main>

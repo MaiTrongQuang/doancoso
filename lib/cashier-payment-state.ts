@@ -18,12 +18,20 @@ export const cashierPaymentMethods = ["CASH", "QR_PAYMENT"] as const;
 
 export type CashierPaymentMethod = (typeof cashierPaymentMethods)[number];
 
+const cashierEditableOrderItemStatuses = ["PENDING"] as const;
+
 export function isCashierPaymentMethod(
   value: unknown,
 ): value is CashierPaymentMethod {
   return (
     typeof value === "string" &&
     cashierPaymentMethods.includes(value as CashierPaymentMethod)
+  );
+}
+
+export function canCashierEditOrderItems(status: string) {
+  return cashierEditableOrderItemStatuses.includes(
+    status as (typeof cashierEditableOrderItemStatuses)[number],
   );
 }
 

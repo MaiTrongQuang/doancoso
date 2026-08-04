@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import {
   applyCashierOrderStatusPatch,
+  canCashierEditOrderItems,
   getCashierPaymentActionLabel,
   hasCashierOrderListChanged,
   type CashierPaymentMethod,
@@ -441,18 +442,25 @@ export function CashierOrderPayment() {
     () => orders.find((order) => order.id === selectedOrderId) ?? null,
     [orders, selectedOrderId],
   );
+  const canEditSelectedOrderItems = selectedOrder
+    ? canCashierEditOrderItems(selectedOrder.status)
+    : false;
   const draftTotalAmount = useMemo(() => {
     if (!selectedOrder) {
       return 0;
+    }
+
+    if (!canEditSelectedOrderItems) {
+      return selectedOrder.totalAmount;
     }
 
     return selectedOrder.items.reduce((total, item) => {
       const draftItem = draftItems[item.id];
       return total + item.price * (draftItem?.quantity ?? item.quantity);
     }, 0);
-  }, [draftItems, selectedOrder]);
+  }, [canEditSelectedOrderItems, draftItems, selectedOrder]);
   const hasDraftChanges = useMemo(() => {
-    if (!selectedOrder) {
+    if (!selectedOrder || !canEditSelectedOrderItems) {
       return false;
     }
 
@@ -472,7 +480,7 @@ export function CashierOrderPayment() {
         draftItem.note.trim() !== normalizeDraftText(item.note)
       );
     });
-  }, [draftItems, draftNote, selectedOrder]);
+  }, [canEditSelectedOrderItems, draftItems, draftNote, selectedOrder]);
   const pollingOrderId =
     qrPayment?.status === "PENDING" ? qrPayment.orderId : null;
 
@@ -1108,66 +1116,84 @@ export function CashierOrderPayment() {
                                 {item.note}
                               </p>
                             ) : null}
-                            <input
-                              className="mt-2 min-h-10 w-full rounded-lg border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
-                              onChange={(event) =>
-                                updateDraftItemNote(item.id, event.target.value)
-                              }
-                              placeholder="Ghi chú món..."
-                              type="text"
-                              value={draftItems[item.id]?.note ?? ""}
-                            />
+                            {canEditSelectedOrderItems ? (
+                              <input
+                                className="mt-2 min-h-10 w-full rounded-lg border border-[#dac3ad] bg-white px-3 text-sm outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                                onChange={(event) =>
+                                  updateDraftItemNote(
+                                    item.id,
+                                    event.target.value,
+                                  )
+                                }
+                                placeholder="Ghi chú món..."
+                                type="text"
+                                value={draftItems[item.id]?.note ?? ""}
+                              />
+                            ) : (
+                              <p className="mt-2 rounded-lg border border-[#eadfce] bg-[#fffdf9] px-3 py-2 text-xs font-semibold text-[#625b50]">
+                                {item.note || "Không có ghi chú món"}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center font-semibold text-[#3b352d]">
-                            <div className="inline-flex overflow-hidden rounded-lg border border-[#dac3ad] bg-white">
-                              <button
-                                className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
-                                onClick={() =>
-                                  updateDraftItemQuantity(
-                                    item.id,
-                                    (draftItems[item.id]?.quantity ??
-                                      item.quantity) - 1,
-                                  )
-                                }
-                                type="button"
-                              >
-                                -
-                              </button>
-                              <input
-                                className="h-10 w-12 border-x border-[#dac3ad] text-center text-sm font-black outline-none"
-                                min={0}
-                                max={99}
-                                onChange={(event) =>
-                                  updateDraftItemQuantity(
-                                    item.id,
-                                    Number(event.target.value),
-                                  )
-                                }
-                                type="number"
-                                value={
-                                  draftItems[item.id]?.quantity ?? item.quantity
-                                }
-                              />
-                              <button
-                                className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
-                                onClick={() =>
-                                  updateDraftItemQuantity(
-                                    item.id,
-                                    (draftItems[item.id]?.quantity ??
-                                      item.quantity) + 1,
-                                  )
-                                }
-                                type="button"
-                              >
-                                +
-                              </button>
-                            </div>
-                            {(draftItems[item.id]?.quantity ?? item.quantity) ===
-                            0 ? (
-                              <p className="mt-1 text-xs font-bold text-red-700">
-                                Sẽ bỏ món
-                              </p>
-                            ) : null}
+                            {canEditSelectedOrderItems ? (
+                              <>
+                                <div className="inline-flex overflow-hidden rounded-lg border border-[#dac3ad] bg-white">
+                                  <button
+                                    className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
+                                    onClick={() =>
+                                      updateDraftItemQuantity(
+                                        item.id,
+                                        (draftItems[item.id]?.quantity ??
+                                          item.quantity) - 1,
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    className="h-10 w-12 border-x border-[#dac3ad] text-center text-sm font-black outline-none"
+                                    min={0}
+                                    max={99}
+                                    onChange={(event) =>
+                                      updateDraftItemQuantity(
+                                        item.id,
+                                        Number(event.target.value),
+                                      )
+                                    }
+                                    type="number"
+                                    value={
+                                      draftItems[item.id]?.quantity ??
+                                      item.quantity
+                                    }
+                                  />
+                                  <button
+                                    className="h-10 w-10 text-lg font-black text-[#6d4d16] transition hover:bg-[#fff4e2]"
+                                    onClick={() =>
+                                      updateDraftItemQuantity(
+                                        item.id,
+                                        (draftItems[item.id]?.quantity ??
+                                          item.quantity) + 1,
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                {(draftItems[item.id]?.quantity ??
+                                  item.quantity) === 0 ? (
+                                  <p className="mt-1 text-xs font-bold text-red-700">
+                                    Sẽ bỏ món
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="inline-flex h-10 min-w-12 items-center justify-center rounded-lg border border-[#eadfce] bg-[#fffdf9] px-4 text-sm font-black">
+                                {item.quantity}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right text-[#3b352d]">
                             {formatMoney(item.price)}
@@ -1175,8 +1201,10 @@ export function CashierOrderPayment() {
                           <td className="px-4 py-3 text-right font-bold text-[#2f5d50]">
                             {formatMoney(
                               item.price *
-                                (draftItems[item.id]?.quantity ??
-                                  item.quantity),
+                                (canEditSelectedOrderItems
+                                  ? draftItems[item.id]?.quantity ??
+                                    item.quantity
+                                  : item.quantity),
                             )}
                           </td>
                         </tr>
@@ -1185,37 +1213,52 @@ export function CashierOrderPayment() {
                   </table>
                 </div>
 
-                <div className="rounded-2xl bg-[#f8f3ea] p-4">
-                  <label className="flex flex-col gap-2 text-sm font-bold text-[#3b352d]">
-                    Ghi chú đơn
-                    <textarea
-                      className="min-h-24 rounded-xl border border-[#dac3ad] bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
-                      onChange={(event) => setDraftNote(event.target.value)}
-                      placeholder="Ghi chú cho bếp hoặc phục vụ..."
-                      value={draftNote}
-                    />
-                  </label>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs font-bold text-[#625b50]">
-                      {hasDraftChanges
-                        ? "Có thay đổi chưa lưu."
-                        : "Đơn đang khớp với dữ liệu hiện tại."}
-                    </p>
-                    <button
-                      className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={
-                        !hasDraftChanges ||
-                        draftTotalAmount <= 0 ||
-                        isSavingOrder ||
-                        isPaying
-                      }
-                      onClick={handleSaveOrderChanges}
-                      type="button"
-                    >
-                      {isSavingOrder ? "Đang lưu..." : "Lưu thay đổi"}
-                    </button>
+                {canEditSelectedOrderItems ? (
+                  <div className="rounded-2xl bg-[#f8f3ea] p-4">
+                    <label className="flex flex-col gap-2 text-sm font-bold text-[#3b352d]">
+                      Ghi chú đơn
+                      <textarea
+                        className="min-h-24 rounded-xl border border-[#dac3ad] bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-[#885200] focus:ring-2 focus:ring-[#ffb868]"
+                        onChange={(event) => setDraftNote(event.target.value)}
+                        placeholder="Ghi chú cho bếp hoặc phục vụ..."
+                        value={draftNote}
+                      />
+                    </label>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs font-bold text-[#625b50]">
+                        {hasDraftChanges
+                          ? "Có thay đổi chưa lưu."
+                          : "Đơn đang khớp với dữ liệu hiện tại."}
+                      </p>
+                      <button
+                        className="pos-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={
+                          !hasDraftChanges ||
+                          draftTotalAmount <= 0 ||
+                          isSavingOrder ||
+                          isPaying
+                        }
+                        onClick={handleSaveOrderChanges}
+                        type="button"
+                      >
+                        {isSavingOrder ? "Đang lưu..." : "Lưu thay đổi"}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-2xl bg-[#f8f3ea] p-4">
+                    <p className="text-sm font-bold text-[#3b352d]">
+                      Ghi chú đơn
+                    </p>
+                    <p className="mt-2 min-h-12 rounded-xl border border-[#eadfce] bg-[#fffdf9] px-3 py-2 text-sm font-semibold text-[#625b50]">
+                      {selectedOrder.note || "Không có ghi chú đơn"}
+                    </p>
+                    <p className="mt-3 text-xs font-bold leading-5 text-[#625b50]">
+                      Đơn đã phục vụ nên số lượng, ghi chú món và tổng tiền được
+                      khóa để thu ngân chỉ xác nhận thanh toán.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid gap-4 md:grid-cols-[1fr_260px]">
                   <label className="flex flex-col gap-2 text-sm font-medium text-[#3b352d]">
